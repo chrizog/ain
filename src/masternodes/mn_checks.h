@@ -101,6 +101,7 @@ enum class CustomTxType : uint8_t
     AuctionBid             = 'I',
     // On-Chain-Gov
     CreateCfp              = 'P',
+    CreateVoc              = 'E',
     Vote                   = 'O',
 };
 
@@ -155,6 +156,7 @@ inline CustomTxType CustomTxCodeToType(uint8_t ch) {
         case CustomTxType::PaybackLoan:
         case CustomTxType::AuctionBid:
         case CustomTxType::CreateCfp:
+        case CustomTxType::CreateVoc:
         case CustomTxType::Vote:
         case CustomTxType::Reject:
         case CustomTxType::None:
