@@ -75,6 +75,8 @@ std::string ToString(CustomTxType type) {
         case CustomTxType::TakeLoan:            return "TakeLoan";
         case CustomTxType::PaybackLoan:         return "PaybackLoan";
         case CustomTxType::AuctionBid:          return "AuctionBid";
+        case CustomTxType::CreateCfp:           return "CreateCfp";
+        case CustomTxType::Vote:                return "Vote";
         case CustomTxType::Reject:              return "Reject";
         case CustomTxType::None:                return "None";
     }
@@ -155,6 +157,8 @@ CCustomTxMessage customTypeToMessage(CustomTxType txType) {
         case CustomTxType::TakeLoan:                return CLoanTakeLoanMessage{};
         case CustomTxType::PaybackLoan:             return CLoanPaybackLoanMessage{};
         case CustomTxType::AuctionBid:              return CAuctionBidMessage{};
+        case CustomTxType::CreateCfp:               return CCreatePropMessage{};
+        case CustomTxType::Vote:                    return CPropVoteMessage{};
         case CustomTxType::Reject:                  return CCustomTxMessageNone{};
         case CustomTxType::None:                    return CCustomTxMessageNone{};
     }
@@ -207,6 +211,13 @@ class CCustomMetadataParseVisitor
     Res isPostFortCanningFork() const {
         if(static_cast<int>(height) < consensus.FortCanningHeight) {
             return Res::Err("called before FortCanning height");
+        }
+        return Res::Ok();
+    }
+
+    Res isPostGreatWorldFork() const {
+        if(static_cast<int>(height) < consensus.GreatWorldHeight) {
+            return Res::Err("called before GreatWorld height");
         }
         return Res::Ok();
     }
@@ -533,6 +544,16 @@ public:
         return !res ? res : serialize(obj);
     }
 
+    Res operator()(CCreatePropMessage& obj) const {
+        auto res = isPostGreatWorldFork();
+        return !res ? res : serialize(obj);
+    }
+
+    Res operator()(CPropVoteMessage& obj) const {
+        auto res = isPostGreatWorldFork();
+        return !res ? res : serialize(obj);
+    }
+
     Res operator()(CCustomTxMessageNone&) const {
         return Res::Ok();
     }
@@ -608,6 +629,13 @@ public:
         }
         if (static_cast<int>(height) >= consensus.EunosPayaHeight && tx.vout[0].nValue != 0) {
             return Res::Err("malformed tx vouts, first vout must be OP_RETURN vout with value 0");
+        }
+        return Res::Ok();
+    }
+
+    Res CheckProposalTx(CPropType type) const {
+        if (tx.vout[0].nValue != GetPropsCreationFee(height, type) || tx.vout[0].nTokenId != DCT_ID{0}) {
+            return Res::Err("malformed tx vouts (wrong creation fee)");
         }
         return Res::Ok();
     }
@@ -2753,6 +2781,63 @@ public:
         return !res ? res : mnview.StoreAuctionBid(obj.vaultId, obj.index, {obj.from, obj.amount});
     }
 
+    Res operator()(const CCreatePropMessage& obj) const {
+        if (obj.type != CPropType::CommunityFundRequest) {
+            return Res::Err("wrong type on community fund proposal request");
+        }
+        auto res = CheckProposalTx(obj.type);
+        if (!res) {
+            return res;
+        }
+        if (!HasFoundationAuth()) {
+            return Res::Err("tx not from foundation member");
+        }
+        if (obj.nAmount >= MAX_MONEY) {
+            return Res::Err("proposal wants to gain all money");
+        }
+        if (obj.title.size() > 128) {
+            return Res::Err("proposal title cannot be more than 128 bytes");
+        }
+        if (obj.nCycles < 1 || obj.nCycles > MAX_CYCLES) {
+            return Res::Err("proposal cycles can be between 1 and %d", int(MAX_CYCLES));
+        }
+        return mnview.CreateProp(tx.GetHash(), height, obj, consensus.props.votingPeriod);
+    }
+
+    Res operator()(const CPropVoteMessage& obj) const {
+        auto prop = mnview.GetProp(obj.propId);
+        if (!prop) {
+            return Res::Err("proposal <%s> does not exists", obj.propId.GetHex());
+        }
+        if (prop->status != CPropStatusType::Voting) {
+            return Res::Err("proposal <%s> is not in voting period", obj.propId.GetHex());
+        }
+        auto node = mnview.GetMasternode(obj.masternodeId);
+        if (!node) {
+            return Res::Err("masternode <%s> does not exist", obj.masternodeId.GetHex());
+        }
+        auto ownerDest = node->ownerType == 1 ? CTxDestination(PKHash(node->ownerAuthAddress))
+                                              : CTxDestination(WitnessV0KeyHash(node->ownerAuthAddress));
+        if (!HasAuth(GetScriptForDestination(ownerDest))) {
+            return Res::Err("tx must have at least one input from the owner");
+        }
+        if (!node->IsActive(height)) {
+            return Res::Err("masternode <%s> is not active", obj.masternodeId.GetHex());
+        }
+        if (node->mintedBlocks < 1) {
+            return Res::Err("masternode <%s> does not mine at least one block", obj.masternodeId.GetHex());
+        }
+        switch(obj.vote) {
+            case CPropVoteType::VoteNo:
+            case CPropVoteType::VoteYes:
+            case CPropVoteType::VoteNeutral:
+                break;
+            default:
+                return Res::Err("unsupported vote type");
+        }
+        return mnview.AddPropVote(obj.propId, obj.masternodeId, obj.vote);
+    }
+
     Res operator()(const CCustomTxMessageNone&) const {
         return Res::Ok();
     }
@@ -3068,6 +3153,7 @@ Res RevertCustomTx(CCustomCSView& mnview, const CCoinsViewCache& coins, const CT
         // Track burn fee
         if (txType == CustomTxType::CreateToken
         || txType == CustomTxType::CreateMasternode
+        || txType == CustomTxType::CreateCfp
         || txType == CustomTxType::Vault) {
             erasers.SubFeeBurn(tx.vout[0].scriptPubKey);
         }
@@ -3150,7 +3236,9 @@ Res ApplyCustomTx(CCustomCSView& mnview, const CCoinsViewCache& coins, const CTr
         res = CustomTxVisit(view, coins, tx, height, consensus, txMessage, time);
 
         // Track burn fee
-        if (txType == CustomTxType::CreateToken || txType == CustomTxType::CreateMasternode) {
+        if (txType == CustomTxType::CreateToken
+        || txType == CustomTxType::CreateMasternode
+        || txType == CustomTxType::CreateCfp) {
             if (writers) {
                 writers->AddFeeBurn(tx.vout[0].scriptPubKey, tx.vout[0].nValue);
             }

@@ -77,13 +77,13 @@ enum class CustomTxType : uint8_t
     UpdateOracleAppoint   = 't',
     SetOracleData         = 'y',
     // ICX
-    ICXCreateOrder      = '1',
-    ICXMakeOffer        = '2',
-    ICXSubmitDFCHTLC    = '3',
-    ICXSubmitEXTHTLC    = '4',
-    ICXClaimDFCHTLC     = '5',
-    ICXCloseOrder       = '6',
-    ICXCloseOffer       = '7',
+    ICXCreateOrder        = '1',
+    ICXMakeOffer          = '2',
+    ICXSubmitDFCHTLC      = '3',
+    ICXSubmitEXTHTLC      = '4',
+    ICXClaimDFCHTLC       = '5',
+    ICXCloseOrder         = '6',
+    ICXCloseOffer         = '7',
     // Loans
     SetLoanCollateralToken = 'c',
     SetLoanToken           = 'g',
@@ -98,7 +98,10 @@ enum class CustomTxType : uint8_t
     WithdrawFromVault      = 'J',
     TakeLoan               = 'X',
     PaybackLoan            = 'H',
-    AuctionBid             = 'I'
+    AuctionBid             = 'I',
+    // On-Chain-Gov
+    CreateCfp              = 'P',
+    Vote                   = 'O',
 };
 
 inline CustomTxType CustomTxCodeToType(uint8_t ch) {
@@ -151,6 +154,8 @@ inline CustomTxType CustomTxCodeToType(uint8_t ch) {
         case CustomTxType::TakeLoan:
         case CustomTxType::PaybackLoan:
         case CustomTxType::AuctionBid:
+        case CustomTxType::CreateCfp:
+        case CustomTxType::Vote:
         case CustomTxType::Reject:
         case CustomTxType::None:
             return type;
@@ -365,7 +370,9 @@ using CCustomTxMessage = std::variant<
     CWithdrawFromVaultMessage,
     CLoanTakeLoanMessage,
     CLoanPaybackLoanMessage,
-    CAuctionBidMessage
+    CAuctionBidMessage,
+    CCreatePropMessage,
+    CPropVoteMessage
 >;
 
 CCustomTxMessage customTypeToMessage(CustomTxType txType);
