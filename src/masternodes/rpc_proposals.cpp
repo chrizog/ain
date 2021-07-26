@@ -188,7 +188,7 @@ UniValue createvoc(const JSONRPCRequest& request)
 
     if (pwallet->chain().isInitialBlockDownload()) {
         throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD,
-                           "Cannot create a cfp while still in Initial Block Download");
+                           "Cannot create a voc while still in Initial Block Download");
     }
     pwallet->BlockUntilSyncedToCurrentChain();
 
@@ -272,7 +272,7 @@ UniValue vote(const JSONRPCRequest& request)
 
     if (pwallet->chain().isInitialBlockDownload()) {
         throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD,
-                           "Cannot create a cfp while still in Initial Block Download");
+                           "Cannot vote while still in Initial Block Download");
     }
     pwallet->BlockUntilSyncedToCurrentChain();
 
@@ -418,8 +418,8 @@ UniValue getproposal(const JSONRPCRequest& request)
                        "{id:{...},...}     (obj) Json object with proposal vote information\n"
                },
                RPCExamples{
-                       HelpExampleCli("listvotes", "txid")
-                       + HelpExampleRpc("listvotes", "txid")
+                       HelpExampleCli("getproposal", "txid")
+                       + HelpExampleRpc("getproposal", "txid")
                },
     }.Check(request);
 
