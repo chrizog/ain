@@ -19,7 +19,7 @@ constexpr const uint8_t MAX_CYCLES = 3;
 
 enum class CPropType : uint8_t {
     CommunityFundRequest    = 0x01,
-    BlockRewardRellocation  = 0x02,
+    BlockRewardReallocation = 0x02,
     VoteOfConfidence        = 0x03,
 };
 
