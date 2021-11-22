@@ -2794,7 +2794,7 @@ public:
         if (obj.title.size() > 128) {
             return Res::Err("proposal title cannot be more than 128 bytes");
         }
-        if (obj.type == CPropType::CommunityFundRequest) {
+        if (obj.type == CPropType::CommunityFundProposal) {
             if (obj.nCycles < 1 || obj.nCycles > MAX_CYCLES) {
                 return Res::Err("proposal cycles can be between 1 and %d", int(MAX_CYCLES));
             }

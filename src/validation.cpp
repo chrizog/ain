@@ -2878,7 +2878,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                 if (valid) {
                     uint32_t majorityThreshold;
                     switch(prop.type) {
-                        case CPropType::CommunityFundRequest:
+                        case CPropType::CommunityFundProposal:
                             majorityThreshold = chainparams.GetConsensus().props.cfp.majorityThreshold;
                             break;
                         case CPropType::BlockRewardReallocation:
@@ -2898,7 +2898,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                             assert(prop.nCycles > prop.cycle);
                             cache.UpdatePropCycle(propId, prop.cycle + 1);
                         }
-                        if (prop.type == CPropType::CommunityFundRequest) {
+                        if (prop.type == CPropType::CommunityFundProposal) {
                             auto res = cache.SubCommunityBalance(CommunityAccountType::CommunityDevFunds, prop.nAmount);
                             if (res) {
                                 cache.CalculateOwnerRewards(prop.address, pindex->nHeight);

@@ -36,7 +36,7 @@ UniValue createcfp(const JSONRPCRequest& request)
     auto pwallet = GetWallet(request);
 
     RPCHelpMan{"createcfp",
-               "\nCreates a Cummunity Fund Request" +
+               "\nCreates a Community Fund Proposal" +
                HelpRequiringPassphrase(pwallet) + "\n",
                {
                        {"data", RPCArg::Type::OBJ, RPCArg::Optional::OMITTED_NAMED_ARG,
@@ -114,7 +114,7 @@ UniValue createcfp(const JSONRPCRequest& request)
     }
 
     CCreatePropMessage pm;
-    pm.type = CPropType::CommunityFundRequest;
+    pm.type = CPropType::CommunityFundProposal;
     pm.address = GetScriptForDestination(address);
     pm.nAmount = amount;
     pm.nCycles = cycles;
@@ -473,7 +473,7 @@ UniValue getproposal(const JSONRPCRequest& request)
     auto valid = allVotes > Params().GetConsensus().props.minVoting;
     if (valid) {
         switch(prop->type) {
-            case CPropType::CommunityFundRequest:
+            case CPropType::CommunityFundProposal:
                 majorityThreshold = Params().GetConsensus().props.cfp.majorityThreshold;
                 break;
             case CPropType::BlockRewardReallocation:
@@ -542,7 +542,7 @@ UniValue listproposals(const JSONRPCRequest& request)
     if (request.params.size() > 0) {
         auto str = request.params[0].get_str();
         if (str == "cfp") {
-            type = uint8_t(CPropType::CommunityFundRequest);
+            type = uint8_t(CPropType::CommunityFundProposal);
         } else if (str == "brp") {
             type = uint8_t(CPropType::BlockRewardReallocation);
         } else if (str == "voc") {
