@@ -211,6 +211,13 @@ class CCustomMetadataParseVisitor
         return Res::Ok();
     }
 
+    Res isPostGreatWorld() const {
+        if(static_cast<int>(height) < consensus.GreatWorldHeight) {
+            return Res::Err("called before GreatWorld height");
+        }
+        return Res::Ok();
+    }
+
     template<typename T>
     Res serialize(T& obj) const {
         CDataStream ss(metadata, SER_NETWORK, PROTOCOL_VERSION);
@@ -239,26 +246,20 @@ public:
     }
 
     Res operator()(CSetForcedRewardAddressMessage& obj) const {
-        // Temporarily disabled for 2.2
-        return Res::Err("reward address change is disabled for Fort Canning");
-
-        auto res = isPostFortCanningFork();
+        auto res = isPostGreatWorld();
         return !res ? res : serialize(obj);
     }
 
     Res operator()(CRemForcedRewardAddressMessage& obj) const {
-        // Temporarily disabled for 2.2
-        return Res::Err("reward address change is disabled for Fort Canning");
-
-        auto res = isPostFortCanningFork();
+        auto res = isPostGreatWorld();
         return !res ? res : serialize(obj);
     }
 
     Res operator()(CUpdateMasterNodeMessage& obj) const {
         // Temporarily disabled for 2.2
         return Res::Err("updatemasternode is disabled for Fort Canning");
-
-        auto res = isPostFortCanningFork();
+        
+        auto res = isPostGreatWorld();
         return !res ? res : serialize(obj);
     }
 
@@ -923,9 +924,6 @@ public:
     }
 
     Res operator()(const CSetForcedRewardAddressMessage& obj) const {
-        // Temporarily disabled for 2.2
-        return Res::Err("reward address change is disabled for Fort Canning");
-
         auto const node = mnview.GetMasternode(obj.nodeId);
         if (!node) {
             return Res::Err("masternode %s does not exist", obj.nodeId.ToString());
@@ -938,9 +936,6 @@ public:
     }
 
     Res operator()(const CRemForcedRewardAddressMessage& obj) const {
-        // Temporarily disabled for 2.2
-        return Res::Err("reward address change is disabled for Fort Canning");
-
         auto const node = mnview.GetMasternode(obj.nodeId);
         if (!node) {
             return Res::Err("masternode %s does not exist", obj.nodeId.ToString());

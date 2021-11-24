@@ -207,10 +207,6 @@ UniValue createmasternode(const JSONRPCRequest& request)
 
 UniValue setforcedrewardaddress(const JSONRPCRequest& request)
 {
-    // Temporarily disabled for 2.2
-    throw JSONRPCError(RPC_INVALID_REQUEST,
-                           "reward address change is disabled for Fort Canning");
-
     auto pwallet = GetWallet(request);
 
     RPCHelpMan{"setforcedrewardaddress",
@@ -315,10 +311,6 @@ UniValue setforcedrewardaddress(const JSONRPCRequest& request)
 
 UniValue remforcedrewardaddress(const JSONRPCRequest& request)
 {
-    // Temporarily disabled for 2.2
-    throw JSONRPCError(RPC_INVALID_REQUEST,
-                           "reward address change is disabled for Fort Canning");
-    
     auto pwallet = GetWallet(request);
 
     RPCHelpMan{"remforcedrewardaddress",
@@ -998,8 +990,8 @@ static const CRPCCommand commands[] =
     {"masternodes", "getanchorteams",        &getanchorteams,        {"blockHeight"}},
     {"masternodes", "getactivemasternodecount",  &getactivemasternodecount,  {"blockCount"}},
     {"masternodes", "listanchors",           &listanchors,           {}},
-    //{"masternodes", "setforcedrewardaddress", &setforcedrewardaddress, {"mn_id", "rewardAddress", "inputs"}},
-    //{"masternodes", "remforcedrewardaddress", &remforcedrewardaddress, {"mn_id", "inputs"}},
+    {"masternodes", "setforcedrewardaddress", &setforcedrewardaddress, {"mn_id", "rewardAddress", "inputs"}},
+    {"masternodes", "remforcedrewardaddress", &remforcedrewardaddress, {"mn_id", "inputs"}},
 };
 
 void RegisterMasternodesRPCCommands(CRPCTable& tableRPC) {
