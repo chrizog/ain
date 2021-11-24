@@ -2786,51 +2786,34 @@ bool ShouldReturnNonFatalError(const CTransaction& tx, uint32_t height) {
     return it != skippedTx.end() && it->second == tx.GetHash();
 }
 
-void PopulateVaultHistoryData(CHistoryWriters* writers, CAccountsHistoryWriter& view, const CCustomTxMessage& txMessage, const CustomTxType txType, const uint32_t height, const uint32_t txn, const uint256& txid) {
+void PopulateVaultHistoryData(CHistoryWriters* writers, const CCustomTxMessage& txMessage, const CustomTxType txType, const uint32_t height, const uint32_t txn, const uint256& txid) {
     if (txType == CustomTxType::Vault) {
         auto obj = boost::get<CVaultMessage>(txMessage);
-        writers->schemeID = obj.schemeId;
-        view.vaultID = txid;
+        writers->AddVault(txid, obj.schemeId);
     } else if (txType == CustomTxType::CloseVault) {
         auto obj = boost::get<CCloseVaultMessage>(txMessage);
-        view.vaultID = obj.vaultId;
+        writers->AddVault(obj.vaultId);
     } else if (txType == CustomTxType::UpdateVault) {
         auto obj = boost::get<CUpdateVaultMessage>(txMessage);
-        view.vaultID = obj.vaultId;
-        if (!obj.schemeId.empty()) {
-            writers->schemeID = obj.schemeId;
-        }
+        writers->AddVault(obj.vaultId, obj.schemeId);
     } else if (txType == CustomTxType::DepositToVault) {
         auto obj = boost::get<CDepositToVaultMessage>(txMessage);
-        view.vaultID = obj.vaultId;
+        writers->AddVault(obj.vaultId);
     } else if (txType == CustomTxType::WithdrawFromVault) {
         auto obj = boost::get<CWithdrawFromVaultMessage>(txMessage);
-        view.vaultID = obj.vaultId;
+        writers->AddVault(obj.vaultId);
     } else if (txType == CustomTxType::TakeLoan) {
         auto obj = boost::get<CLoanTakeLoanMessage>(txMessage);
-        view.vaultID = obj.vaultId;
+        writers->AddVault(obj.vaultId);
     } else if (txType == CustomTxType::PaybackLoan) {
         auto obj = boost::get<CLoanPaybackLoanMessage>(txMessage);
-        view.vaultID = obj.vaultId;
+        writers->AddVault(obj.vaultId);
     } else if (txType == CustomTxType::AuctionBid) {
         auto obj = boost::get<CAuctionBidMessage>(txMessage);
-        view.vaultID = obj.vaultId;
+        writers->AddVault(obj.vaultId);
     } else if (txType == CustomTxType::LoanScheme) {
         auto obj = boost::get<CLoanSchemeMessage>(txMessage);
-        writers->globalLoanScheme.identifier = obj.identifier;
-        writers->globalLoanScheme.ratio = obj.ratio;
-        writers->globalLoanScheme.rate = obj.rate;
-        if (!obj.updateHeight) {
-            writers->globalLoanScheme.schemeCreationTxid = txid;
-        } else {
-            writers->vaultView->ForEachGlobalScheme([&writers](VaultGlobalSchemeKey const & key, CLazySerialize<VaultGlobalSchemeValue> value) {
-                if (value.get().loanScheme.identifier != writers->globalLoanScheme.identifier) {
-                    return true;
-                }
-                writers->globalLoanScheme.schemeCreationTxid = key.schemeCreationTxid;
-                return false;
-            }, {height, txn, {}});
-        }
+        writers->AddLoanScheme(obj, txid, height, txn);
     }
 }
 
@@ -2851,8 +2834,8 @@ Res ApplyCustomTx(CCustomCSView& mnview, const CCoinsViewCache& coins, const CTr
     auto txMessage = customTypeToMessage(txType);
     CAccountsHistoryWriter view(mnview, height, txn, tx.GetHash(), uint8_t(txType), writers);
     if ((res = CustomMetadataParse(height, consensus, metadata, txMessage))) {
-        if (pvaultHistoryDB && writers) {
-           PopulateVaultHistoryData(writers, view, txMessage, txType, height, txn, tx.GetHash());
+        if (writers) {
+           PopulateVaultHistoryData(writers, txMessage, txType, height, txn, tx.GetHash());
         }
         res = CustomTxVisit(view, coins, tx, height, consensus, txMessage, time);
 
