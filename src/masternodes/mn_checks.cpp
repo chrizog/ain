@@ -2808,7 +2808,7 @@ public:
         } else {
             return Res::Err("unsupported proposal type");
         }
-        return mnview.CreateProp(tx.GetHash(), height, obj, consensus.props.votingPeriod);
+        return mnview.CreateProp(tx.GetHash(), height, obj);
     }
 
     Res operator()(const CPropVoteMessage& obj) const {
