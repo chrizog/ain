@@ -35,10 +35,10 @@ namespace pos {
     bool CheckHeaderSignature(const CBlockHeader& block);
 
 /// Check kernel hash target and coinstake signature
-    bool ContextualCheckProofOfStake(const CBlockHeader& blockHeader, const Consensus::Params& params, CCustomCSView* mnView, CheckContextState& ctxState);
+    bool ContextualCheckProofOfStake(const CBlockHeader& blockHeader, const Consensus::Params& params, CheckContextState& ctxState);
 
 /// Check kernel hash target and coinstake signature. Check that block coinstakeTx matches header
-    bool CheckProofOfStake(const CBlockHeader& blockHeader, const CBlockIndex* pindexPrev, const Consensus::Params& params, CCustomCSView* mnView);
+    bool CheckProofOfStake(const CBlockHeader& blockHeader, const CBlockIndex* pindexPrev, const Consensus::Params& params);
 
     unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, int64_t blockTime, const Consensus::Params& params);
 

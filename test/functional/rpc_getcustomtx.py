@@ -443,17 +443,17 @@ class TokensRPCGetCustomTX(DefiTestFramework):
         assert_equal(result['results']['mc_id'], mn_txid)
 
         # Test updating a masternode
-        #new_operator_address = self.nodes[0].getnewaddress('', 'legacy')
-        #update_mn_txid = self.nodes[0].updatemasternode(mn_txid, new_operator_address)
-        #self.nodes[0].generate(1)
-        #self.sync_blocks(self.nodes[0:2])
+        new_operator_address = self.nodes[0].getnewaddress('', 'legacy')
+        update_mn_txid = self.nodes[0].updatemasternode(mn_txid, new_operator_address)
+        self.nodes[0].generate(1)
+        self.sync_blocks(self.nodes[0:2])
 
         # Get custom TX
-        #result = self.nodes[1].getcustomtx(update_mn_txid)
-        #self.check_result(result)
-        #assert_equal(result['type'], "UpdateMasternode")
-        #assert_equal(result['results']['id'], mn_txid)
-        #assert_equal(result['results']['masternodeoperator'], new_operator_address)
+        result = self.nodes[1].getcustomtx(update_mn_txid)
+        self.check_result(result)
+        assert_equal(result['type'], "UpdateMasternode")
+        assert_equal(result['results']['id'], mn_txid)
+        assert_equal(result['results']['masternodeoperator'], new_operator_address)
 
         # Test appoint oracle
         oracle_address = self.nodes[0].getnewaddress("", "legacy")

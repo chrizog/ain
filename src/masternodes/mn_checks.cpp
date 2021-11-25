@@ -256,9 +256,6 @@ public:
     }
 
     Res operator()(CUpdateMasterNodeMessage& obj) const {
-        // Temporarily disabled for 2.2
-        return Res::Err("updatemasternode is disabled for Fort Canning");
-        
         auto res = isPostGreatWorld();
         return !res ? res : serialize(obj);
     }
@@ -948,10 +945,12 @@ public:
     }
 
     Res operator()(const CUpdateMasterNodeMessage& obj) const {
-        // Temporarily disabled for 2.2
-        return Res::Err("updatemasternode is disabled for Fort Canning");
-
         auto res = HasCollateralAuth(obj.mnId);
+
+        if (mnview.GetMasternodeIdByOwner(obj.operatorAuthAddress) || mnview.GetMasternodeIdByOperator(obj.operatorAuthAddress)) {
+            return Res::Err("Masternode with that operator address already exists");
+        }
+
         return !res ? res : mnview.UpdateMasternode(obj.mnId, obj.operatorType, obj.operatorAuthAddress, height);
     }
 

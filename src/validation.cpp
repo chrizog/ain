@@ -2327,11 +2327,13 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                                                                            nodeId->ToString(), nodePtr->mintedBlocks + 1, block.mintedBlocks), REJECT_INVALID, "bad-minted-blocks");
         }
         uint256 stakeModifierPrevBlock = pindex->pprev == nullptr ? uint256() : pindex->pprev->stakeModifier;
-        if (block.stakeModifier != pos::ComputeStakeModifier(stakeModifierPrevBlock, nodePtr->operatorAuthAddress)) {
+        const CKeyID key = pindex->nHeight >= chainparams.GetConsensus().GreatWorldHeight ? nodePtr->ownerAuthAddress : nodePtr->operatorAuthAddress;
+        const auto stakeModifier = pos::ComputeStakeModifier(stakeModifierPrevBlock, key);
+        if (block.stakeModifier != stakeModifier) {
             return state.Invalid(
                     ValidationInvalidReason::CONSENSUS,
                     error("ConnectBlock(): block's stake Modifier should be %d, got %d!",
-                            block.stakeModifier.ToString(), pos::ComputeStakeModifier(stakeModifierPrevBlock, nodePtr->operatorAuthAddress).ToString()),
+                            block.stakeModifier.ToString(), stakeModifier.ToString()),
                     REJECT_INVALID,
                     "bad-minted-blocks");
         }
@@ -4528,7 +4530,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 
     // Check that the header is valid (particularly PoW).  This is mostly
     // redundant with the call in AcceptBlockHeader.
-    if (!fIsFakeNet && fCheckPOS && !pos::ContextualCheckProofOfStake(block, consensusParams, pcustomcsview.get(), ctxState))
+    if (!fIsFakeNet && fCheckPOS && !pos::ContextualCheckProofOfStake(block, consensusParams, ctxState))
         return state.Invalid(ValidationInvalidReason::BLOCK_INVALID_HEADER, false, REJECT_INVALID, "high-hash", "proof of stake failed");
 
     // Check the merkle root.

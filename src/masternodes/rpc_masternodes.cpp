@@ -490,10 +490,6 @@ UniValue resignmasternode(const JSONRPCRequest& request)
 
 UniValue updatemasternode(const JSONRPCRequest& request)
 {
-    // Temporarily disabled for 2.2
-    throw JSONRPCError(RPC_INVALID_REQUEST,
-                           "updatemasternode is disabled for Fort Canning");
-
     auto pwallet = GetWallet(request);
 
     RPCHelpMan{"updatemasternode",
@@ -528,16 +524,6 @@ UniValue updatemasternode(const JSONRPCRequest& request)
                            "Cannot update Masternode while still in Initial Block Download");
     }
     pwallet->BlockUntilSyncedToCurrentChain();
-
-    bool forkCanning;
-    {
-        LOCK(cs_main);
-        forkCanning = ::ChainActive().Tip()->height >= Params().GetConsensus().FortCanningHeight;
-    }
-
-    if (!forkCanning) {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "updatemasternode cannot be called before Fortcanning hard fork");
-    }
 
     RPCTypeCheck(request.params, { UniValue::VSTR, UniValue::VSTR, UniValue::VARR }, true);
     if (request.params[0].isNull() || request.params[1].isNull()) {
@@ -983,7 +969,7 @@ static const CRPCCommand commands[] =
 //  --------------- ----------------------   ---------------------   ----------
     {"masternodes", "createmasternode",      &createmasternode,      {"ownerAddress", "operatorAddress", "inputs"}},
     {"masternodes", "resignmasternode",      &resignmasternode,      {"mn_id", "inputs"}},
-    //{"masternodes", "updatemasternode",      &updatemasternode,      {"mn_id", "operatorAddress", "inputs"}},
+    {"masternodes", "updatemasternode",      &updatemasternode,      {"mn_id", "operatorAddress", "inputs"}},
     {"masternodes", "listmasternodes",       &listmasternodes,       {"pagination", "verbose"}},
     {"masternodes", "getmasternode",         &getmasternode,         {"mn_id"}},
     {"masternodes", "getmasternodeblocks",   &getmasternodeblocks,   {"identifier", "depth"}},

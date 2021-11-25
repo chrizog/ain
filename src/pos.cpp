@@ -18,11 +18,19 @@ bool CheckStakeModifier(const CBlockIndex* pindexPrev, const CBlockHeader& block
     if (blockHeader.hashPrevBlock.IsNull())
         return blockHeader.stakeModifier.IsNull();
 
-    /// @todo is it possible to pass minter key here, or we really need to extract it srom sig???
     CKeyID key;
     if (!blockHeader.ExtractMinterKey(key)) {
-        LogPrintf("CheckStakeModifier: Can't extract minter key\n");
-        return false;
+        return error("%s: Can't extract minter key\n", __func__);
+    }
+
+    if (pindexPrev->nHeight + 1 >= Params().GetConsensus().GreatWorldHeight) {
+        auto nodeId = pcustomcsview->GetMasternodeIdByOperator(key);
+        if (!nodeId) {
+            return error("%s: No master operator found with minter key\n", __func__);
+        }
+        auto nodePtr = pcustomcsview->GetMasternode(*nodeId);
+        assert(nodePtr);
+        key = nodePtr->ownerAuthAddress;
     }
 
     return blockHeader.stakeModifier == pos::ComputeStakeModifier(pindexPrev->stakeModifier, key);
@@ -47,7 +55,7 @@ bool CheckHeaderSignature(const CBlockHeader& blockHeader) {
     return true;
 }
 
-bool ContextualCheckProofOfStake(const CBlockHeader& blockHeader, const Consensus::Params& params, CCustomCSView* mnView, CheckContextState& ctxState) {
+bool ContextualCheckProofOfStake(const CBlockHeader& blockHeader, const Consensus::Params& params, CheckContextState& ctxState) {
     /// @todo may be this is tooooo optimistic? need more validation?
     if (blockHeader.height == 0 && blockHeader.GetHash() == params.hashGenesisBlock) {
         return true;
@@ -64,19 +72,19 @@ bool ContextualCheckProofOfStake(const CBlockHeader& blockHeader, const Consensu
     {
         // check that block minter exists and active at the height of the block
         AssertLockHeld(cs_main);
-        auto optMasternodeID = mnView->GetMasternodeIdByOperator(minter);
+        auto optMasternodeID = pcustomcsview->GetMasternodeIdByOperator(minter);
         if (!optMasternodeID) {
             return false;
         }
         masternodeID = *optMasternodeID;
-        auto nodePtr = mnView->GetMasternode(masternodeID);
+        auto nodePtr = pcustomcsview->GetMasternode(masternodeID);
         if (!nodePtr || !nodePtr->IsActive(blockHeader.height)) {
             return false;
         }
         creationHeight = int64_t(nodePtr->creationHeight);
 
         if (blockHeader.height >= static_cast<uint64_t>(params.EunosPayaHeight)) {
-            timelock = mnView->GetTimelock(masternodeID, *nodePtr, blockHeader.height);
+            timelock = pcustomcsview->GetTimelock(masternodeID, *nodePtr, blockHeader.height);
         }
 
         // Check against EunosPayaHeight here for regtest, does not hurt other networks.
@@ -85,7 +93,7 @@ bool ContextualCheckProofOfStake(const CBlockHeader& blockHeader, const Consensu
             const auto usedHeight = blockHeader.height <= static_cast<uint64_t>(params.EunosHeight) ? creationHeight : blockHeader.height;
 
             // Get block times
-            subNodesBlockTime = mnView->GetBlockTimes(nodePtr->operatorAuthAddress, usedHeight, creationHeight, timelock);
+            subNodesBlockTime = pcustomcsview->GetBlockTimes(nodePtr->operatorAuthAddress, usedHeight, creationHeight, timelock);
         }
     }
 
@@ -99,11 +107,11 @@ bool ContextualCheckProofOfStake(const CBlockHeader& blockHeader, const Consensu
     return CheckHeaderSignature(blockHeader);
 }
 
-bool CheckProofOfStake(const CBlockHeader& blockHeader, const CBlockIndex* pindexPrev, const Consensus::Params& params, CCustomCSView* mnView) {
+bool CheckProofOfStake(const CBlockHeader& blockHeader, const CBlockIndex* pindexPrev, const Consensus::Params& params) {
 
     // this is our own check of own minted block (just to remember)
     CheckContextState ctxState;
-    return CheckStakeModifier(pindexPrev, blockHeader) && ContextualCheckProofOfStake(blockHeader, params, mnView, ctxState);
+    return CheckStakeModifier(pindexPrev, blockHeader) && ContextualCheckProofOfStake(blockHeader, params, ctxState);
 }
 
 unsigned int CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlockTime, const Consensus::Params::PoS& params, bool newDifficultyAdjust)
@@ -201,7 +209,7 @@ std::optional<std::string> CheckSignedBlock(const std::shared_ptr<CBlock>& pbloc
     uint256 hashBlock = pblock->GetHash();
 
     // verify hash target and signature of coinstake tx
-    if (!CheckProofOfStake(*(CBlockHeader*)pblock.get(), pindexPrev,  chainparams.GetConsensus(), pcustomcsview.get()))
+    if (!CheckProofOfStake(*(CBlockHeader*)pblock.get(), pindexPrev,  chainparams.GetConsensus()))
         return {std::string{} + "proof-of-stake checking failed"};
 
     LogPrint(BCLog::STAKING, "new proof-of-stake block found hash: %s\n", hashBlock.GetHex());

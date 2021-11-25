@@ -31,12 +31,12 @@ std::shared_ptr<CBlock> Block( const uint256& prev_hash, const uint64_t& height,
     return pblock;
 }
 
-std::shared_ptr<CBlock> FinalizeBlock(std::shared_ptr<CBlock> pblock, const uint256& masternodeID, const CKey& minterKey, const uint256& prevStakeModifier)
+std::shared_ptr<CBlock> FinalizeBlock(std::shared_ptr<CBlock> pblock, const uint256& masternodeID, const CKey& minterKey, const uint256& prevStakeModifier, const CKeyID& modifierKey)
 {
     LOCK(cs_main); // For LookupBlockIndex
     static uint64_t time = Params().GenesisBlock().nTime;
 
-    pblock->stakeModifier = pos::ComputeStakeModifier(prevStakeModifier, minterKey.GetPubKey().GetID());
+    pblock->stakeModifier = pos::ComputeStakeModifier(prevStakeModifier, modifierKey);
 
     pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
 
@@ -97,12 +97,35 @@ BOOST_AUTO_TEST_CASE(check_stake_modifier)
         Block(Params().GenesisBlock().GetHash(), height, mintedBlocks),
         masternodeID,
         minterKey,
-        prevStakeModifier);
+        prevStakeModifier,
+        minterKey.GetPubKey().GetID());
     BOOST_CHECK(pos::CheckStakeModifier(::ChainActive().Tip(), *(CBlockHeader*)correctBlock.get()));
 
     correctBlock->SetNull();
     correctBlock->hashPrevBlock = prev_hash;
     BOOST_CHECK(!pos::CheckStakeModifier(::ChainActive().Tip(), *(CBlockHeader*)correctBlock.get()));
+
+    // Create masternode
+    const auto mnID = uint256S(std::string(64, 1));
+    CKey newMinterKey;
+    newMinterKey.MakeNewKey(true);
+    CMasternode masternode;
+    masternode.operatorType = 1;
+    masternode.ownerType = 1;
+    masternode.ownerAuthAddress = CKeyID{uint160{std::vector<unsigned char>(20, '0')}};
+    masternode.operatorAuthAddress = newMinterKey.GetPubKey().GetID();
+    BOOST_CHECK(pcustomcsview->CreateMasternode(mnID, masternode, 0));
+
+    // Check stake modifier calculated on owner address after fork
+    auto blockTip = *::ChainActive().Tip();
+    blockTip.nHeight = Params().GetConsensus().GreatWorldHeight;
+    std::shared_ptr<CBlock> newModifierBlock = FinalizeBlock(
+            Block(blockTip.GetBlockHash(), blockTip.nHeight, blockTip.mintedBlocks),
+            mnID,
+            newMinterKey,
+            blockTip.stakeModifier,
+            masternode.ownerAuthAddress);
+    BOOST_CHECK(pos::CheckStakeModifier(&blockTip, *(CBlockHeader*)newModifierBlock.get()));
 }
 
 BOOST_AUTO_TEST_CASE(check_header_signature)
@@ -125,7 +148,8 @@ BOOST_AUTO_TEST_CASE(check_header_signature)
         block,
         masternodeID,
         minterKey,
-        prev_hash);
+        prev_hash,
+        minterKey.GetPubKey().GetID());
 
     BOOST_CHECK(pos::CheckHeaderSignature(*(CBlockHeader*)block.get()));
 
@@ -142,17 +166,17 @@ BOOST_AUTO_TEST_CASE(contextual_check_pos)
     CKey minterKey = pos->second.operatorKey;
     CheckContextState ctxState;
 
-    BOOST_CHECK(pos::ContextualCheckProofOfStake((CBlockHeader)Params().GenesisBlock(), Params().GetConsensus(), pcustomcsview.get(), ctxState));
+    BOOST_CHECK(pos::ContextualCheckProofOfStake((CBlockHeader)Params().GenesisBlock(), Params().GetConsensus(), ctxState));
 
 //    uint256 prev_hash = uint256S("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef");
     uint64_t height = 0;
     uint64_t mintedBlocks = 1;
     std::shared_ptr<CBlock> block = Block(Params().GenesisBlock().GetHash(), height, mintedBlocks);
 
-    BOOST_CHECK(!pos::ContextualCheckProofOfStake(*(CBlockHeader*)block.get(), Params().GetConsensus(), pcustomcsview.get(), ctxState));
+    BOOST_CHECK(!pos::ContextualCheckProofOfStake(*(CBlockHeader*)block.get(), Params().GetConsensus(), ctxState));
 
     block->height = 1;
-    BOOST_CHECK(!pos::ContextualCheckProofOfStake(*(CBlockHeader*)block.get(), Params().GetConsensus(), pcustomcsview.get(), ctxState));
+    BOOST_CHECK(!pos::ContextualCheckProofOfStake(*(CBlockHeader*)block.get(), Params().GetConsensus(), ctxState));
 }
 
 BOOST_AUTO_TEST_CASE(sign_pos_block)
@@ -175,7 +199,7 @@ BOOST_AUTO_TEST_CASE(sign_pos_block)
     BOOST_CHECK(!pos::SignPosBlock(block, minterKey));
     BOOST_CHECK_THROW(pos::SignPosBlock(block, minterKey), std::logic_error);
 
-    BOOST_CHECK(!pos::CheckProofOfStake(*(CBlockHeader*)block.get(), ::ChainActive().Tip(), Params().GetConsensus(), pcustomcsview.get()));
+    BOOST_CHECK(!pos::CheckProofOfStake(*(CBlockHeader*)block.get(), ::ChainActive().Tip(), Params().GetConsensus()));
 }
 
 BOOST_AUTO_TEST_CASE(check_subnode)

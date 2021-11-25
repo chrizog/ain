@@ -359,10 +359,8 @@ Res CMasternodesView::RemForcedRewardAddress(uint256 const & nodeId, int height)
     return Res::Ok();
 }
 
-Res CMasternodesView::UpdateMasternode(uint256 const & nodeId, char operatorType, const CKeyID& operatorAuthAddress, int height) {
-    // Temporarily disabled for 2.2
-    return Res::Err("updatemasternode is disabled for Fort Canning");
-
+Res CMasternodesView::UpdateMasternode(uint256 const & nodeId, char operatorType, const CKeyID& operatorAuthAddress, int height)
+{
     // auth already checked!
     auto node = GetMasternode(nodeId);
     if (!node) {
@@ -372,10 +370,6 @@ Res CMasternodesView::UpdateMasternode(uint256 const & nodeId, char operatorType
     const auto state = node->GetState(height);
     if (state != CMasternode::ENABLED) {
         return Res::Err("node %s state is not 'ENABLED'", nodeId.ToString());
-    }
-
-    if (operatorType == node->operatorType && operatorAuthAddress == node->operatorAuthAddress) {
-        return Res::Err("The new operator is same as existing operator");
     }
 
     // Remove old record
