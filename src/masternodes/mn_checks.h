@@ -43,8 +43,6 @@ enum class CustomTxType : uint8_t
     CreateMasternode      = 'C',
     ResignMasternode      = 'R',
     UpdateMasternode      = 'm',
-    SetForcedRewardAddress = 'F',
-    RemForcedRewardAddress = 'f',
     // custom tokens:
     CreateToken           = 'T',
     MintToken             = 'M',
@@ -101,13 +99,19 @@ enum class CustomTxType : uint8_t
     AuctionBid             = 'I'
 };
 
+enum class UpdateMasternodeType : uint8_t
+{
+    None                   = 0x00,
+    OperatorAddress        = 0x01,
+    SetRewardAddress       = 0x02,
+    RemRewardAddress       = 0x03
+};
+
 inline CustomTxType CustomTxCodeToType(uint8_t ch) {
     auto type = static_cast<CustomTxType>(ch);
     switch(type) {
         case CustomTxType::CreateMasternode:
         case CustomTxType::ResignMasternode:
-        case CustomTxType::SetForcedRewardAddress:
-        case CustomTxType::RemForcedRewardAddress:
         case CustomTxType::UpdateMasternode:
         case CustomTxType::CreateToken:
         case CustomTxType::MintToken:
@@ -207,45 +211,29 @@ struct CResignMasterNodeMessage : public uint256 {
     }
 };
 
-struct CSetForcedRewardAddressMessage {
-    uint256 nodeId;
-    char rewardAddressType;
-    CKeyID rewardAddress;
-
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
-    {
-        READWRITE(nodeId);
-        READWRITE(rewardAddressType);
-        READWRITE(rewardAddress);
-    }
-};
-
-struct CRemForcedRewardAddressMessage {
-    uint256 nodeId;
-
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
-    {
-        READWRITE(nodeId);
-    }
-};
-
 struct CUpdateMasterNodeMessage {
     uint256 mnId;
+    uint8_t firstType;
     char operatorType;
-    CKeyID operatorAuthAddress;
+    CKeyID operatorAddress;
+    uint8_t secondType;
+    char rewardType;
+    CKeyID rewardAddress;
 
     ADD_SERIALIZE_METHODS;
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(mnId);
-        READWRITE(operatorType);
-        READWRITE(operatorAuthAddress);
+        READWRITE(firstType);
+        if (firstType == static_cast<uint8_t>(UpdateMasternodeType::OperatorAddress)) {
+            READWRITE(operatorType);
+            READWRITE(operatorAddress);
+        }
+        READWRITE(secondType);
+        if (secondType == static_cast<uint8_t>(UpdateMasternodeType::SetRewardAddress)) {
+            READWRITE(rewardType);
+            READWRITE(rewardAddress);
+        }
     }
 };
 
@@ -322,8 +310,6 @@ using CCustomTxMessage = std::variant<
     CCustomTxMessageNone,
     CCreateMasterNodeMessage,
     CResignMasterNodeMessage,
-    CSetForcedRewardAddressMessage,
-    CRemForcedRewardAddressMessage,
     CUpdateMasterNodeMessage,
     CCreateTokenMessage,
     CUpdateTokenPreAMKMessage,

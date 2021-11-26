@@ -199,9 +199,9 @@ public:
     Res ResignMasternode(uint256 const & nodeId, uint256 const & txid, int height);
     Res UnCreateMasternode(uint256 const & nodeId);
     Res UnResignMasternode(uint256 const & nodeId, uint256 const & resignTx);
-    Res SetForcedRewardAddress(uint256 const & nodeId, const char rewardAddressType, CKeyID const & rewardAddress, int height);
-    Res RemForcedRewardAddress(uint256 const & nodeId, int height);
-    Res UpdateMasternode(uint256 const & nodeId, char operatorType, const CKeyID& operatorAuthAddress, int height);
+    void SetForcedRewardAddress(uint256 const & nodeId, CMasternode& node, const char rewardAddressType, CKeyID const & rewardAddress, int height);
+    void RemForcedRewardAddress(uint256 const & nodeId, CMasternode& node, int height);
+    void UpdateMasternode(uint256 const & nodeId, CMasternode& node, char operatorType, const CKeyID& operatorAuthAddress, int height);
 
     // Get blocktimes for non-subnode and subnode with fork logic
     std::vector<int64_t> GetBlockTimes(const CKeyID& keyID, const uint32_t blockHeight, const int32_t creationHeight, const uint16_t timelock);

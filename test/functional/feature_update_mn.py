@@ -57,28 +57,6 @@ class MasternodesRpcBasicTest (DefiTestFramework):
 
         self.sync_all()
 
-        # UPDATING
-        #========================
-        assert_raises_rpc_error(-32600, "called before GreatWorld height", self.nodes[0].updatemasternode, idnode0, collateral0)
-
-        self.nodes[0].generate(50)
-
-        assert_raises_rpc_error(-32600, "Masternode with that operator address already exists", self.nodes[0].updatemasternode, idnode0, collateral0)
-
-        # node 1 try to update node 0 which should be rejected.
-        assert_raises_rpc_error(-5, "Incorrect authorization", self.nodes[1].updatemasternode, idnode0, collateral1)
-
-        self.nodes[0].updatemasternode(idnode0, collateral1)
-        self.nodes[0].generate(1)
-        self.sync_all()
-
-        assert_equal(self.nodes[1].listmasternodes()[idnode0]["operatorAuthAddress"], collateral1)
-
-        # Test rollback
-        blockhash = self.nodes[1].getblockhash(self.nodes[1].getblockcount())
-        self.nodes[1].invalidateblock(blockhash)
-        self.nodes[1].reconsiderblock(blockhash)
-
         # RESIGNING:
         #========================
 

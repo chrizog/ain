@@ -30,8 +30,6 @@ std::string ToString(CustomTxType type) {
     {
         case CustomTxType::CreateMasternode:    return "CreateMasternode";
         case CustomTxType::ResignMasternode:    return "ResignMasternode";
-        case CustomTxType::SetForcedRewardAddress: return "SetForcedRewardAddress";
-        case CustomTxType::RemForcedRewardAddress: return "RemForcedRewardAddress";
         case CustomTxType::UpdateMasternode:    return "UpdateMasternode";
         case CustomTxType::CreateToken:         return "CreateToken";
         case CustomTxType::UpdateToken:         return "UpdateToken";
@@ -110,8 +108,6 @@ CCustomTxMessage customTypeToMessage(CustomTxType txType) {
     {
         case CustomTxType::CreateMasternode:        return CCreateMasterNodeMessage{};
         case CustomTxType::ResignMasternode:        return CResignMasterNodeMessage{};
-        case CustomTxType::SetForcedRewardAddress:  return CSetForcedRewardAddressMessage{};
-        case CustomTxType::RemForcedRewardAddress:  return CRemForcedRewardAddressMessage{};
         case CustomTxType::UpdateMasternode:        return CUpdateMasterNodeMessage{};
         case CustomTxType::CreateToken:             return CCreateTokenMessage{};
         case CustomTxType::UpdateToken:             return CUpdateTokenPreAMKMessage{};
@@ -243,16 +239,6 @@ public:
             return Res::Err("metadata must contain 32 bytes");
         }
         return serialize(obj);
-    }
-
-    Res operator()(CSetForcedRewardAddressMessage& obj) const {
-        auto res = isPostGreatWorld();
-        return !res ? res : serialize(obj);
-    }
-
-    Res operator()(CRemForcedRewardAddressMessage& obj) const {
-        auto res = isPostGreatWorld();
-        return !res ? res : serialize(obj);
     }
 
     Res operator()(CUpdateMasterNodeMessage& obj) const {
@@ -920,38 +906,47 @@ public:
         return !res ? res : mnview.ResignMasternode(obj, tx.GetHash(), height);
     }
 
-    Res operator()(const CSetForcedRewardAddressMessage& obj) const {
-        auto const node = mnview.GetMasternode(obj.nodeId);
-        if (!node) {
-            return Res::Err("masternode %s does not exist", obj.nodeId.ToString());
-        }
-        if (!HasCollateralAuth(obj.nodeId)) {
-            return Res::Err("%s: %s", obj.nodeId.ToString(), "tx must have at least one input from masternode owner");
-        }
-
-        return mnview.SetForcedRewardAddress(obj.nodeId, obj.rewardAddressType, obj.rewardAddress, height);
-    }
-
-    Res operator()(const CRemForcedRewardAddressMessage& obj) const {
-        auto const node = mnview.GetMasternode(obj.nodeId);
-        if (!node) {
-            return Res::Err("masternode %s does not exist", obj.nodeId.ToString());
-        }
-        if (!HasCollateralAuth(obj.nodeId)) {
-            return Res::Err("%s: %s", obj.nodeId.ToString(), "tx must have at least one input from masternode owner");
-        }
-
-        return mnview.RemForcedRewardAddress(obj.nodeId, height);
-    }
-
     Res operator()(const CUpdateMasterNodeMessage& obj) const {
-        auto res = HasCollateralAuth(obj.mnId);
-
-        if (mnview.GetMasternodeIdByOwner(obj.operatorAuthAddress) || mnview.GetMasternodeIdByOperator(obj.operatorAuthAddress)) {
-            return Res::Err("Masternode with that operator address already exists");
+        auto node = mnview.GetMasternode(obj.mnId);
+        if (!node) {
+            return Res::Err("masternode %s does not exists", obj.mnId.ToString());
         }
 
-        return !res ? res : mnview.UpdateMasternode(obj.mnId, obj.operatorType, obj.operatorAuthAddress, height);
+        const auto res = HasCollateralAuth(obj.mnId);
+        if (!res) {
+            return res;
+        }
+
+        auto state = node->GetState(height);
+        if (state != CMasternode::ENABLED) {
+            return Res::Err("Masternode %s is not in 'ENABLED' state", obj.mnId.ToString());
+        }
+
+        if (obj.firstType == static_cast<uint8_t>(UpdateMasternodeType::None) &&
+            obj.secondType == static_cast<uint8_t>(UpdateMasternodeType::None)) {
+            return Res::Err("Missing both rewardAddress or operatorAddress arguments");
+        }
+
+        if (obj.firstType == static_cast<uint8_t>(UpdateMasternodeType::OperatorAddress)) {
+            if (obj.operatorType != 1 && obj.operatorType != 4) {
+                return Res::Err("Operator address must be P2PKH or P2WPKH type");
+            }
+            if (mnview.GetMasternodeIdByOwner(obj.operatorAddress) || mnview.GetMasternodeIdByOperator(obj.operatorAddress)) {
+                return Res::Err("Masternode with that operator address already exists");
+            }
+            mnview.UpdateMasternode(obj.mnId, *node, obj.operatorType, obj.operatorAddress, height);
+        }
+
+        if (obj.secondType == static_cast<uint8_t>(UpdateMasternodeType::SetRewardAddress)) {
+            if (obj.rewardType != 1 && obj.rewardType != 4) {
+                return Res::Err("Reward address must be P2PKH or P2WPKH type");
+            }
+            mnview.SetForcedRewardAddress(obj.mnId, *node, obj.rewardType, obj.rewardAddress, height);
+        } else if (obj.secondType == static_cast<uint8_t>(UpdateMasternodeType::RemRewardAddress)) {
+            mnview.RemForcedRewardAddress(obj.mnId, *node, height);
+        }
+
+        return Res::Ok();
     }
 
     Res operator()(const CCreateTokenMessage& obj) const {

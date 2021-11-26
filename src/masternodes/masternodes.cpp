@@ -317,72 +317,37 @@ Res CMasternodesView::ResignMasternode(const uint256 & nodeId, const uint256 & t
     return Res::Ok();
 }
 
-Res CMasternodesView::SetForcedRewardAddress(uint256 const & nodeId, const char rewardAddressType, CKeyID const & rewardAddress, int height)
+void CMasternodesView::SetForcedRewardAddress(uint256 const & nodeId, CMasternode& node, const char rewardAddressType, CKeyID const & rewardAddress, int height)
 {
-    auto node = GetMasternode(nodeId);
-    if (!node) {
-        return Res::Err("masternode %s does not exists", nodeId.ToString());
-    }
-    auto state = node->GetState(height);
-    if ((state != CMasternode::PRE_ENABLED && state != CMasternode::ENABLED)) {
-        return Res::Err("masternode %s state is not 'PRE_ENABLED' or 'ENABLED'", nodeId.ToString());
-    }
-
-    // If old masternode update foor new serialisatioono
-    if (node->version < CMasternode::VERSION0) {
-        node->version = CMasternode::VERSION0;
+    // If old masternode update for new serialisation
+    if (node.version < CMasternode::VERSION0) {
+        node.version = CMasternode::VERSION0;
     }
 
     // Set new reward address
-    node->rewardAddressType = rewardAddressType;
-    node->rewardAddress = rewardAddress;
-    WriteBy<ID>(nodeId, *node);
-
-    return Res::Ok();
+    node.rewardAddressType = rewardAddressType;
+    node.rewardAddress = rewardAddress;
+    WriteBy<ID>(nodeId, node);
 }
 
-Res CMasternodesView::RemForcedRewardAddress(uint256 const & nodeId, int height)
+void CMasternodesView::RemForcedRewardAddress(uint256 const & nodeId, CMasternode& node, int height)
 {
-    auto node = GetMasternode(nodeId);
-    if (!node) {
-        return Res::Err("masternode %s does not exists", nodeId.ToString());
-    }
-    auto state = node->GetState(height);
-    if ((state != CMasternode::PRE_ENABLED && state != CMasternode::ENABLED)) {
-        return Res::Err("masternode %s state is not 'PRE_ENABLED' or 'ENABLED'", nodeId.ToString());
-    }
-
-    node->rewardAddressType = 0;
-    node->rewardAddress.SetNull();
-    WriteBy<ID>(nodeId, *node);
-
-    return Res::Ok();
+    node.rewardAddressType = 0;
+    node.rewardAddress.SetNull();
+    WriteBy<ID>(nodeId, node);
 }
 
-Res CMasternodesView::UpdateMasternode(uint256 const & nodeId, char operatorType, const CKeyID& operatorAuthAddress, int height)
+void CMasternodesView::UpdateMasternode(uint256 const & nodeId, CMasternode& node, char operatorType, const CKeyID& operatorAuthAddress, int height)
 {
-    // auth already checked!
-    auto node = GetMasternode(nodeId);
-    if (!node) {
-        return Res::Err("node %s does not exists", nodeId.ToString());
-    }
-
-    const auto state = node->GetState(height);
-    if (state != CMasternode::ENABLED) {
-        return Res::Err("node %s state is not 'ENABLED'", nodeId.ToString());
-    }
-
     // Remove old record
-    EraseBy<Operator>(node->operatorAuthAddress);
+    EraseBy<Operator>(node.operatorAuthAddress);
 
-    node->operatorType = operatorType;
-    node->operatorAuthAddress = operatorAuthAddress;
+    node.operatorType = operatorType;
+    node.operatorAuthAddress = operatorAuthAddress;
 
     // Overwrite and create new record
-    WriteBy<ID>(nodeId, *node);
-    WriteBy<Operator>(node->operatorAuthAddress, nodeId);
-
-    return Res::Ok();
+    WriteBy<ID>(nodeId, node);
+    WriteBy<Operator>(node.operatorAuthAddress, nodeId);
 }
 
 void CMasternodesView::SetMasternodeLastBlockTime(const CKeyID & minter, const uint32_t &blockHeight, const int64_t& time)

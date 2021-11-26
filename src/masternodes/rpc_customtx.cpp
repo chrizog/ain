@@ -74,24 +74,20 @@ public:
         rpcInfo.pushKV("id", obj.GetHex());
     }
 
-    void operator()(const CSetForcedRewardAddressMessage& obj) const {
-        rpcInfo.pushKV("mc_id", obj.nodeId.GetHex());
-        rpcInfo.pushKV("rewardAddress", EncodeDestination(
-                obj.rewardAddressType == 1 ?
-                    CTxDestination(PKHash(obj.rewardAddress)) :
-                    CTxDestination(WitnessV0KeyHash(obj.rewardAddress)))
-        );
-    }
-
-    void operator()(const CRemForcedRewardAddressMessage& obj) const {
-        rpcInfo.pushKV("mc_id", obj.nodeId.GetHex());
-    }
-
     void operator()(const CUpdateMasterNodeMessage& obj) const {
         rpcInfo.pushKV("id", obj.mnId.GetHex());
-        rpcInfo.pushKV("masternodeoperator", EncodeDestination(obj.operatorType == PKHashType ?
-                                                CTxDestination(PKHash(obj.operatorAuthAddress)) :
-                                                CTxDestination(WitnessV0KeyHash(obj.operatorAuthAddress))));
+        if (obj.firstType == static_cast<uint8_t>(UpdateMasternodeType::OperatorAddress)) {
+            rpcInfo.pushKV("operatorAddress", EncodeDestination(obj.operatorType == PKHashType ?
+                                                                   CTxDestination(PKHash(obj.operatorAddress)) :
+                                                                   CTxDestination(WitnessV0KeyHash(obj.operatorAddress))));
+        }
+        if (obj.secondType == static_cast<uint8_t>(UpdateMasternodeType::SetRewardAddress)) {
+            rpcInfo.pushKV("rewardAddress", EncodeDestination(obj.rewardType == PKHashType ?
+                                                                   CTxDestination(PKHash(obj.rewardAddress)) :
+                                                                   CTxDestination(WitnessV0KeyHash(obj.rewardAddress))));
+        } else if (obj.secondType == static_cast<uint8_t>(UpdateMasternodeType::RemRewardAddress)) {
+            rpcInfo.pushKV("rewardAddress", "");
+        }
     }
 
     void operator()(const CCreateTokenMessage& obj) const {
