@@ -76,17 +76,18 @@ public:
 
     void operator()(const CUpdateMasterNodeMessage& obj) const {
         rpcInfo.pushKV("id", obj.mnId.GetHex());
-        if (obj.firstType == static_cast<uint8_t>(UpdateMasternodeType::OperatorAddress)) {
-            rpcInfo.pushKV("operatorAddress", EncodeDestination(obj.operatorType == PKHashType ?
-                                                                   CTxDestination(PKHash(obj.operatorAddress)) :
-                                                                   CTxDestination(WitnessV0KeyHash(obj.operatorAddress))));
-        }
-        if (obj.secondType == static_cast<uint8_t>(UpdateMasternodeType::SetRewardAddress)) {
-            rpcInfo.pushKV("rewardAddress", EncodeDestination(obj.rewardType == PKHashType ?
-                                                                   CTxDestination(PKHash(obj.rewardAddress)) :
-                                                                   CTxDestination(WitnessV0KeyHash(obj.rewardAddress))));
-        } else if (obj.secondType == static_cast<uint8_t>(UpdateMasternodeType::RemRewardAddress)) {
-            rpcInfo.pushKV("rewardAddress", "");
+        for (const auto& item : obj.updates) {
+            if (item.first == static_cast<uint8_t>(UpdateMasternodeType::OperatorAddress)) {
+                rpcInfo.pushKV("operatorAddress", EncodeDestination(item.second.first == PKHashType ?
+                                                                    CTxDestination(PKHash(item.second.second)) :
+                                                                    CTxDestination(WitnessV0KeyHash(item.second.second))));
+            } else if (item.first == static_cast<uint8_t>(UpdateMasternodeType::SetRewardAddress)) {
+                rpcInfo.pushKV("rewardAddress", EncodeDestination(item.second.first == PKHashType ?
+                                                                  CTxDestination(PKHash(item.second.second)) :
+                                                                  CTxDestination(WitnessV0KeyHash(item.second.second))));
+            } else if (item.first == static_cast<uint8_t>(UpdateMasternodeType::RemRewardAddress)) {
+                rpcInfo.pushKV("rewardAddress", "");
+            }
         }
     }
 

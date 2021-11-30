@@ -213,27 +213,13 @@ struct CResignMasterNodeMessage : public uint256 {
 
 struct CUpdateMasterNodeMessage {
     uint256 mnId;
-    uint8_t firstType;
-    char operatorType;
-    CKeyID operatorAddress;
-    uint8_t secondType;
-    char rewardType;
-    CKeyID rewardAddress;
+    std::vector<std::pair<uint8_t, std::pair<char, std::vector<unsigned char>>>> updates;
 
     ADD_SERIALIZE_METHODS;
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(mnId);
-        READWRITE(firstType);
-        if (firstType == static_cast<uint8_t>(UpdateMasternodeType::OperatorAddress)) {
-            READWRITE(operatorType);
-            READWRITE(operatorAddress);
-        }
-        READWRITE(secondType);
-        if (secondType == static_cast<uint8_t>(UpdateMasternodeType::SetRewardAddress)) {
-            READWRITE(rewardType);
-            READWRITE(rewardAddress);
-        }
+        READWRITE(updates);
     }
 };
 

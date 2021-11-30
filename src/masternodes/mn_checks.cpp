@@ -922,28 +922,32 @@ public:
             return Res::Err("Masternode %s is not in 'ENABLED' state", obj.mnId.ToString());
         }
 
-        if (obj.firstType == static_cast<uint8_t>(UpdateMasternodeType::None) &&
-            obj.secondType == static_cast<uint8_t>(UpdateMasternodeType::None)) {
-            return Res::Err("Missing both rewardAddress or operatorAddress arguments");
+        if (obj.updates.empty()) {
+            return Res::Err("No update arguments provided");
         }
 
-        if (obj.firstType == static_cast<uint8_t>(UpdateMasternodeType::OperatorAddress)) {
-            if (obj.operatorType != 1 && obj.operatorType != 4) {
-                return Res::Err("Operator address must be P2PKH or P2WPKH type");
+        for (const auto& item : obj.updates) {
+            LogPrintf("TYPE: %d\n", item.first);
+            if (item.first == static_cast<uint8_t>(UpdateMasternodeType::OperatorAddress)) {
+                if (item.second.first != 1 && item.second.first != 4) {
+                    return Res::Err("Operator address must be P2PKH or P2WPKH type");
+                }
+                const auto keyID = CKeyID(uint160(item.second.second));
+                if (mnview.GetMasternodeIdByOwner(keyID) || mnview.GetMasternodeIdByOperator(keyID)) {
+                    return Res::Err("Masternode with that operator address already exists");
+                }
+                mnview.UpdateMasternode(obj.mnId, *node, item.second.first, keyID, height);
+            } else if (item.first == static_cast<uint8_t>(UpdateMasternodeType::SetRewardAddress)) {
+                if (item.second.first != 1 && item.second.first != 4) {
+                    return Res::Err("Reward address must be P2PKH or P2WPKH type");
+                }
+                const auto keyID = CKeyID(uint160(item.second.second));
+                mnview.SetForcedRewardAddress(obj.mnId, *node, item.second.first, keyID, height);
+            } else if (item.first == static_cast<uint8_t>(UpdateMasternodeType::RemRewardAddress)) {
+                mnview.RemForcedRewardAddress(obj.mnId, *node, height);
+            } else {
+                return Res::Err("Unknown update type provided");
             }
-            if (mnview.GetMasternodeIdByOwner(obj.operatorAddress) || mnview.GetMasternodeIdByOperator(obj.operatorAddress)) {
-                return Res::Err("Masternode with that operator address already exists");
-            }
-            mnview.UpdateMasternode(obj.mnId, *node, obj.operatorType, obj.operatorAddress, height);
-        }
-
-        if (obj.secondType == static_cast<uint8_t>(UpdateMasternodeType::SetRewardAddress)) {
-            if (obj.rewardType != 1 && obj.rewardType != 4) {
-                return Res::Err("Reward address must be P2PKH or P2WPKH type");
-            }
-            mnview.SetForcedRewardAddress(obj.mnId, *node, obj.rewardType, obj.rewardAddress, height);
-        } else if (obj.secondType == static_cast<uint8_t>(UpdateMasternodeType::RemRewardAddress)) {
-            mnview.RemForcedRewardAddress(obj.mnId, *node, height);
         }
 
         return Res::Ok();

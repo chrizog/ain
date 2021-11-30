@@ -158,7 +158,21 @@ class TestForcedRewardAddress(DefiTestFramework):
             self.nodes[0].updatemasternode(mn_id, {})
         except JSONRPCException as e:
             errorString = e.error['message']
-        assert("Missing both rewardAddress or operatorAddress arguments" in errorString)
+        assert("No update arguments provided" in errorString)
+
+        # Test unknown update type
+        unknown_tx = self.nodes[0].updatemasternode(mn_id, {'rewardAddress':new_reward_address})
+        unknown_rawtx = self.nodes[0].getrawtransaction(unknown_tx)
+        self.nodes[0].clearmempool()
+
+        updated_tx = unknown_rawtx.replace('01020114', '01ff0114')
+        self.nodes[0].signrawtransactionwithwallet(updated_tx)
+
+        try:
+            self.nodes[0].sendrawtransaction(updated_tx)
+        except JSONRPCException as e:
+            errorString = e.error['message']
+        assert("Unknown update type provided" in errorString)
 
 if __name__ == '__main__':
     TestForcedRewardAddress().main()

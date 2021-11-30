@@ -385,27 +385,27 @@ UniValue updatemasternode(const JSONRPCRequest& request)
         coinControl.destChange = ownerDest;
     }
 
-    CDataStream metadata(DfTxMarker, SER_NETWORK, PROTOCOL_VERSION);
-    metadata << static_cast<unsigned char>(CustomTxType::UpdateMasternode)
-             << nodeId;
+    CUpdateMasterNodeMessage msg{nodeId};
 
     if (!metaObj["operatorAddress"].isNull()) {
         const CKeyID keyID = operatorDest.index() == PKHashType ? CKeyID(std::get<PKHash>(operatorDest)) : CKeyID(std::get<WitnessV0KeyHash>(operatorDest));
-        metadata << static_cast<uint8_t>(UpdateMasternodeType::OperatorAddress) << static_cast<char>(operatorDest.index()) << keyID;
+        msg.updates.emplace_back(static_cast<uint8_t>(UpdateMasternodeType::OperatorAddress), std::make_pair(static_cast<char>(operatorDest.index()), std::vector<unsigned char>(keyID.begin(), keyID.end())));
     } else {
-        metadata << static_cast<uint8_t>(UpdateMasternodeType::None);
+
     }
 
     if (!metaObj["rewardAddress"].isNull()) {
         if (rewardAddress.empty()) {
-            metadata << static_cast<uint8_t>(UpdateMasternodeType::RemRewardAddress);
+            msg.updates.emplace_back(static_cast<uint8_t>(UpdateMasternodeType::RemRewardAddress), std::pair<char, std::vector<unsigned char>>());
         } else {
             const CKeyID keyID = rewardDest.index() == PKHashType ? CKeyID(std::get<PKHash>(rewardDest)) : CKeyID(std::get<WitnessV0KeyHash>(rewardDest));
-            metadata << static_cast<uint8_t>(UpdateMasternodeType::SetRewardAddress) << static_cast<char>(rewardDest.index()) << keyID;
+            msg.updates.emplace_back(static_cast<uint8_t>(UpdateMasternodeType::SetRewardAddress), std::make_pair(static_cast<char>(rewardDest.index()), std::vector<unsigned char>(keyID.begin(), keyID.end())));
         }
-    } else {
-        metadata << static_cast<uint8_t>(UpdateMasternodeType::None);
     }
+
+    CDataStream metadata(DfTxMarker, SER_NETWORK, PROTOCOL_VERSION);
+    metadata << static_cast<unsigned char>(CustomTxType::UpdateMasternode)
+             << msg;
 
     CScript scriptMeta;
     scriptMeta << OP_RETURN << ToByteVector(metadata);
