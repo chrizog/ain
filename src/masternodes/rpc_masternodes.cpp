@@ -390,8 +390,6 @@ UniValue updatemasternode(const JSONRPCRequest& request)
     if (!metaObj["operatorAddress"].isNull()) {
         const CKeyID keyID = operatorDest.index() == PKHashType ? CKeyID(std::get<PKHash>(operatorDest)) : CKeyID(std::get<WitnessV0KeyHash>(operatorDest));
         msg.updates.emplace_back(static_cast<uint8_t>(UpdateMasternodeType::OperatorAddress), std::make_pair(static_cast<char>(operatorDest.index()), std::vector<unsigned char>(keyID.begin(), keyID.end())));
-    } else {
-
     }
 
     if (!metaObj["rewardAddress"].isNull()) {

@@ -927,7 +927,6 @@ public:
         }
 
         for (const auto& item : obj.updates) {
-            LogPrintf("TYPE: %d\n", item.first);
             if (item.first == static_cast<uint8_t>(UpdateMasternodeType::OperatorAddress)) {
                 if (item.second.first != 1 && item.second.first != 4) {
                     return Res::Err("Operator address must be P2PKH or P2WPKH type");
