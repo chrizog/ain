@@ -21,7 +21,6 @@
 #include <unordered_map>
 
 std::unique_ptr<CCustomCSView> pcustomcsview;
-std::unique_ptr<CStorageLevelDB> pcustomcsDB;
 
 int GetMnActivationDelay(int height)
 {
@@ -515,7 +514,6 @@ uint16_t CMasternodesView::GetTimelock(const uint256& nodeId, const CMasternode&
 {
     auto timelock = ReadBy<Timelock, uint16_t>(nodeId);
     if (timelock) {
-        LOCK(cs_main);
         // Get last height
         auto lastHeight = height - 1;
 
@@ -524,6 +522,7 @@ uint16_t CMasternodesView::GetTimelock(const uint256& nodeId, const CMasternode&
             return *timelock;
         }
 
+        LOCK(cs_main);
         // Get timelock expiration time. Timelock set in weeks, convert to seconds.
         const auto timelockExpire = ::ChainActive()[node.creationHeight]->nTime + (*timelock * 7 * 24 * 60 * 60);
 
@@ -557,18 +556,25 @@ std::vector<int64_t> CMasternodesView::GetBlockTimes(const CKeyID& keyID, const 
         subNodesBlockTime[0] = *stakerBlockTime;
     }
 
-    if (auto block = ::ChainActive()[Params().GetConsensus().EunosPayaHeight]) {
-        if (creationHeight < Params().GetConsensus().DakotaCrescentHeight && !stakerBlockTime && !subNodesBlockTime[0]) {
-            if (auto dakotaBlock = ::ChainActive()[Params().GetConsensus().DakotaCrescentHeight]) {
-                subNodesBlockTime[0] = dakotaBlock->GetBlockTime();
+    auto eunosPayaBlockTime = [&]() -> int64_t {
+        LOCK(cs_main);
+        if (auto block = ::ChainActive()[Params().GetConsensus().EunosPayaHeight]) {
+            if (creationHeight < Params().GetConsensus().DakotaCrescentHeight && !stakerBlockTime && !subNodesBlockTime[0]) {
+                if (auto dakotaBlock = ::ChainActive()[Params().GetConsensus().DakotaCrescentHeight]) {
+                    subNodesBlockTime[0] = dakotaBlock->GetBlockTime();
+                }
             }
+            return block->GetBlockTime();
         }
+        return 0;
+    }();
 
+    if (eunosPayaBlockTime > 0) {
         // If no values set for pre-fork MN use the fork time
         const uint8_t loops = timelock == CMasternode::TENYEAR ? 4 : timelock == CMasternode::FIVEYEAR ? 3 : 2;
         for (uint8_t i{0}; i < loops; ++i) {
             if (!subNodesBlockTime[i]) {
-                subNodesBlockTime[i] = block->GetBlockTime();
+                subNodesBlockTime[i] = eunosPayaBlockTime;
             }
         }
     }
@@ -847,6 +853,12 @@ void CCustomCSView::CreateAndRelayConfirmMessageIfNeed(const CAnchorIndex::Ancho
     }
 }
 
+void CCustomCSView::AddUndo(CCustomCSView & cache, uint256 const & txid, uint32_t height)
+{
+    auto& flushable = static_cast<CFlushableStorageKV&>(cache.GetStorage());
+    SetUndo({height, txid}, CUndo::Construct(GetStorage(), flushable.GetRaw()));
+}
+
 void CCustomCSView::OnUndoTx(uint256 const & txid, uint32_t height)
 {
     const auto undo = GetUndo(UndoKey{height, txid});
@@ -922,16 +934,16 @@ CAmount CCollateralLoans::precisionRatio() const
 
 ResVal<CAmount> CCustomCSView::GetAmountInCurrency(CAmount amount, CTokenCurrencyPair priceFeedId, bool useNextPrice, bool requireLivePrice)
 {
-        auto priceResult = GetValidatedIntervalPrice(priceFeedId, useNextPrice, requireLivePrice);
-        if (!priceResult)
-            return std::move(priceResult);
+    auto priceResult = GetValidatedIntervalPrice(priceFeedId, useNextPrice, requireLivePrice);
+    if (!priceResult)
+        return priceResult;
 
-        auto price = priceResult.val.value();
-        auto amountInCurrency = MultiplyAmounts(price, amount);
-        if (price > COIN && amountInCurrency < amount)
-            return Res::Err("Value/price too high (%s/%s)", GetDecimaleString(amount), GetDecimaleString(price));
+    auto price = *priceResult.val;
+    auto amountInCurrency = MultiplyAmounts(price, amount);
+    if (price > COIN && amountInCurrency < amount)
+        return Res::Err("Value/price too high (%s/%s)", GetDecimaleString(amount), GetDecimaleString(price));
 
-        return ResVal<CAmount>(amountInCurrency, Res::Ok());
+    return ResVal<CAmount>(amountInCurrency, Res::Ok());
 }
 
 ResVal<CCollateralLoans> CCustomCSView::GetLoanCollaterals(CVaultId const& vaultId, CBalances const& collaterals, uint32_t height,
@@ -1045,8 +1057,10 @@ Res CCustomCSView::PopulateCollateralData(CCollateralLoans& result, CVaultId con
     return Res::Ok();
 }
 
-uint256 CCustomCSView::MerkleRoot() {
-    auto& rawMap = GetStorage().GetRaw();
+uint256 CCustomCSView::MerkleRoot()
+{
+    auto& flushable = static_cast<CFlushableStorageKV&>(GetStorage());
+    auto& rawMap = flushable.GetRaw();
     if (rawMap.empty()) {
         return {};
     }
