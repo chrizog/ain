@@ -603,15 +603,16 @@ void CTxMemPool::removeForBlock(const std::vector<CTransactionRef>& vtx, unsigne
         for (auto it = txsByEntryTime.begin(); it != txsByEntryTime.end(); ++it) {
             CValidationState state;
             const auto& tx = it->GetTx();
-            if (!Consensus::CheckTxInputs(tx, state, mempoolDuplicate, &viewDuplicate, nBlockHeight, txfee, Params())) {
-                LogPrintf("%s: Remove conflicting TX: %s\n", __func__, tx.GetHash().GetHex());
-                staged.insert(mapTx.project<0>(it));
-                continue;
-            }
-            auto res = ApplyCustomTx(viewDuplicate, mempoolDuplicate, tx, Params().GetConsensus(), nBlockHeight);
+            uint256 canSpend;
+            auto res = ApplyCustomTx(viewDuplicate, mempoolDuplicate, tx, Params().GetConsensus(), nBlockHeight, 0, &canSpend);
             if (!res.ok && (res.code & CustomTxErrCodes::Fatal)) {
                 LogPrintf("%s: Remove conflicting custom TX: %s\n", __func__, tx.GetHash().GetHex());
                 staged.insert(mapTx.project<0>(it));
+            }
+            if (!Consensus::CheckTxInputs(tx, state, mempoolDuplicate, &viewDuplicate, nBlockHeight, txfee, Params(), canSpend)) {
+                LogPrintf("%s: Remove conflicting TX: %s\n", __func__, tx.GetHash().GetHex());
+                staged.insert(mapTx.project<0>(it));
+                continue;
             }
         }
 
@@ -655,7 +656,10 @@ static void CheckInputsAndUpdateCoins(const CTransaction& tx, CCoinsViewCache& m
 {
     CValidationState state;
     CAmount txfee = 0;
-    bool fCheckResult = tx.IsCoinBase() || Consensus::CheckTxInputs(tx, state, mempoolDuplicate, mnview, spendheight, txfee, chainparams);
+    uint256 canSpend;
+    CCustomCSView viewCopy(*pcustomcsview.get());
+    ApplyCustomTx(viewCopy, mempoolDuplicate, tx, chainparams.GetConsensus(), spendheight, 0, &canSpend);
+    bool fCheckResult = tx.IsCoinBase() || Consensus::CheckTxInputs(tx, state, mempoolDuplicate, mnview, spendheight, txfee, chainparams, canSpend);
     fCheckResult = fCheckResult && CheckBurnSpend(tx, mempoolDuplicate);
     assert(fCheckResult);
     UpdateCoins(tx, mempoolDuplicate, std::numeric_limits<int>::max());

@@ -279,7 +279,7 @@ static UniValue getmininginfo(const JSONRPCRequest& request)
             //should not come here if the database has correct data.
             throw JSONRPCError(RPC_DATABASE_ERROR, strprintf("The masternode %s does not exist", mnId.second.GetHex()));
         }
-        auto state = nodePtr->GetState(height);
+        auto state = nodePtr->GetState(height, *pcustomcsview);
         CTxDestination operatorDest = nodePtr->operatorType == 1 ? CTxDestination(PKHash(nodePtr->operatorAuthAddress)) :
                                       CTxDestination(WitnessV0KeyHash(nodePtr->operatorAuthAddress));
         subObj.pushKV("operator", EncodeDestination(operatorDest));// NOTE(sp) : Should this also be encoded? not the HEX

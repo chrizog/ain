@@ -50,6 +50,7 @@ public:
         ENABLED,
         PRE_RESIGNED,
         RESIGNED,
+        TRANSFERRING,
         UNKNOWN // unreachable
     };
 
@@ -88,12 +89,12 @@ public:
 
     //! This fields are for transaction rollback (by disconnecting block)
     uint256 resignTx;
-    uint256 banTx;
+    uint256 collateralTx;
 
     //! empty constructor
     CMasternode();
 
-    State GetState(int height) const;
+    State GetState(int height, const CCustomCSView& mnview) const;
     bool IsActive(int height) const;
 
     static std::string GetHumanReadableState(State state);
@@ -115,7 +116,7 @@ public:
         READWRITE(version);
 
         READWRITE(resignTx);
-        READWRITE(banTx);
+        READWRITE(collateralTx);
 
         // Only available after FortCanning
         if (version > PRE_FORT_CANNING) {
@@ -174,6 +175,20 @@ struct SubNodeBlockTimeKey
     }
 };
 
+struct MNNewOwnerHeightValue
+{
+    uint32_t blockHeight;
+    uint256 masternodeID;
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action) {
+        READWRITE(blockHeight);
+        READWRITE(masternodeID);
+    }
+};
+
 class CMasternodesView : public virtual CStorageView
 {
     std::map<CKeyID, std::pair<uint32_t, int64_t>> minterTimeCache;
@@ -196,12 +211,18 @@ public:
     std::set<std::pair<CKeyID, uint256>> GetOperatorsMulti() const;
 
     Res CreateMasternode(uint256 const & nodeId, CMasternode const & node, uint16_t timelock);
-    Res ResignMasternode(uint256 const & nodeId, uint256 const & txid, int height);
+    Res ResignMasternode(CMasternode& node, uint256 const & nodeId, uint256 const & txid, int height, CCustomCSView& mnview);
     Res UnCreateMasternode(uint256 const & nodeId);
-    Res UnResignMasternode(uint256 const & nodeId, uint256 const & resignTx);
+    Res UnResignMasternode(CMasternode& node, uint256 const & nodeId);
+
+    // Masternode updates
     void SetForcedRewardAddress(uint256 const & nodeId, CMasternode& node, const char rewardAddressType, CKeyID const & rewardAddress, int height);
     void RemForcedRewardAddress(uint256 const & nodeId, CMasternode& node, int height);
-    void UpdateMasternode(uint256 const & nodeId, CMasternode& node, char operatorType, const CKeyID& operatorAuthAddress, int height);
+    void UpdateMasternodeOperator(uint256 const & nodeId, CMasternode& node, const char operatorType, const CKeyID& operatorAuthAddress, int height);
+    void UpdateMasternodeOwner(uint256 const & nodeId, CMasternode& node, const char ownerType, const CKeyID& ownerAuthAddress);
+    void UpdateMasternodeCollateral(uint256 const & nodeId, CMasternode& node, const uint256& newCollateralTx, const int height);
+    std::optional<MNNewOwnerHeightValue> GetNewCollateral(const uint256& txid) const;
+    void ForEachNewCollateral(std::function<bool(const uint256&, CLazySerialize<MNNewOwnerHeightValue>)> callback);
 
     // Get blocktimes for non-subnode and subnode with fork logic
     std::vector<int64_t> GetBlockTimes(const CKeyID& keyID, const uint32_t blockHeight, const int32_t creationHeight, const uint16_t timelock);
@@ -224,6 +245,7 @@ public:
     struct ID       { static constexpr uint8_t prefix() { return 'M'; } };
     struct Operator { static constexpr uint8_t prefix() { return 'o'; } };
     struct Owner    { static constexpr uint8_t prefix() { return 'w'; } };
+    struct NewCollateral { static constexpr uint8_t prefix() { return 's'; } };
 
     // For storing last staked block time
     struct Staker   { static constexpr uint8_t prefix() { return 'X'; } };
@@ -355,7 +377,7 @@ class CCustomCSView
     void CheckPrefixes()
     {
         CheckPrefix<
-            CMasternodesView        ::  ID, Operator, Owner, Staker, SubNode, Timelock,
+            CMasternodesView        ::  ID, NewCollateral, Operator, Owner, Staker, SubNode, Timelock,
             CLastHeightView         ::  Height,
             CTeamView               ::  AuthTeam, ConfirmTeam, CurrentTeam,
             CFoundationsDebtView    ::  Debt,
