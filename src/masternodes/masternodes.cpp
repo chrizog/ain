@@ -301,9 +301,13 @@ Res CMasternodesView::CreateMasternode(const uint256 & nodeId, const CMasternode
     return Res::Ok();
 }
 
-Res CMasternodesView::ResignMasternode(CMasternode& node, const uint256 & nodeId, const uint256 & txid, int height, CCustomCSView& mnview)
+Res CMasternodesView::ResignMasternode(CMasternode& node, const uint256 & nodeId, const uint256 & txid, int height)
 {
-    auto state = node.GetState(height, mnview);
+    const auto mnview = dynamic_cast<CCustomCSView*>(this);
+    if (!mnview) {
+        return Res::Err("Must be called from object of CCustomCSView type");
+    }
+    auto state = node.GetState(height, *mnview);
     if (height >= Params().GetConsensus().EunosPayaHeight) {
         if (state != CMasternode::ENABLED) {
             return Res::Err("node %s state is not 'ENABLED'", nodeId.ToString());

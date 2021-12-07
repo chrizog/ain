@@ -907,7 +907,7 @@ public:
             return Res::Err("node %s does not exists", obj.ToString());
         }
         auto res = HasCollateralAuth(node->collateralTx.IsNull() ? static_cast<uint256>(obj) : node->collateralTx);
-        return !res ? res : mnview.ResignMasternode(*node, obj, tx.GetHash(), height, mnview);
+        return !res ? res : mnview.ResignMasternode(*node, obj, tx.GetHash(), height);
     }
 
     Res operator()(const CUpdateMasterNodeMessage& obj) const {

@@ -211,7 +211,7 @@ public:
     std::set<std::pair<CKeyID, uint256>> GetOperatorsMulti() const;
 
     Res CreateMasternode(uint256 const & nodeId, CMasternode const & node, uint16_t timelock);
-    Res ResignMasternode(CMasternode& node, uint256 const & nodeId, uint256 const & txid, int height, CCustomCSView& mnview);
+    Res ResignMasternode(CMasternode& node, uint256 const & nodeId, uint256 const & txid, int height);
     Res UnCreateMasternode(uint256 const & nodeId);
     Res UnResignMasternode(CMasternode& node, uint256 const & nodeId);
 
