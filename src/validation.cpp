@@ -612,14 +612,9 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         const auto height = GetSpendHeight(view);
 
         // it does not need to check mempool anymore it has view there
-        uint256 canSpend;
-        auto res = ApplyCustomTx(mnview, view, tx, chainparams.GetConsensus(), height, nAcceptTime, &canSpend);
-        if (!res.ok || (res.code & CustomTxErrCodes::Fatal)) {
-            return state.Invalid(ValidationInvalidReason::TX_MEMPOOL_POLICY, false, REJECT_INVALID, res.msg);
-        }
 
         CAmount nFees = 0;
-        if (!Consensus::CheckTxInputs(tx, state, view, &mnview, height, nFees, chainparams, canSpend)) {
+        if (!Consensus::CheckTxInputs(tx, state, view, &mnview, height, nFees, chainparams)) {
             return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
         }
 
@@ -630,6 +625,11 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         // let make sure we have needed coins
         if (view.GetValueIn(tx) < nFees) {
             return state.Invalid(ValidationInvalidReason::TX_MEMPOOL_POLICY, false, REJECT_INVALID, "bad-txns-inputs-below-tx-fee");
+        }
+
+        auto res = ApplyCustomTx(mnview, view, tx, chainparams.GetConsensus(), height, nAcceptTime);
+        if (!res.ok || (res.code & CustomTxErrCodes::Fatal)) {
+            return state.Invalid(ValidationInvalidReason::TX_MEMPOOL_POLICY, false, REJECT_INVALID, res.msg);
         }
 
         // we have all inputs cached now, so switch back to dummy, so we don't need to keep lock on mempool
@@ -2495,6 +2495,25 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
 
         if (!tx.IsCoinBase())
         {
+
+            CAmount txfee = 0;
+            if (!Consensus::CheckTxInputs(tx, state, view, &accountsView, pindex->nHeight, txfee, chainparams)) {
+                if (!IsBlockReason(state.GetReason())) {
+                    // CheckTxInputs may return MISSING_INPUTS or
+                    // PREMATURE_SPEND but we can't return that, as it's not
+                    // defined for a block, so we reset the reason flag to
+                    // CONSENSUS here.
+                    state.Invalid(ValidationInvalidReason::CONSENSUS, false,
+                                  state.GetRejectCode(), state.GetRejectReason(), state.GetDebugMessage());
+                }
+                return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
+            }
+            nFees += txfee;
+            if (!MoneyRange(nFees)) {
+                return state.Invalid(ValidationInvalidReason::CONSENSUS, error("%s: accumulated fee in the block out of range.", __func__),
+                                     REJECT_INVALID, "bad-txns-accumulated-fee-outofrange");
+            }
+
             // Check that transaction is BIP68 final
             // BIP68 lock checks (as opposed to nLockTime checks) must
             // be in ConnectBlock because they require the UTXO set
@@ -2539,8 +2558,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
             }
 
             CHistoryWriters writers{paccountHistoryDB.get(), pburnHistoryDB.get(), pvaultHistoryDB.get()};
-            uint256 canSpend;
-            const auto res = ApplyCustomTx(accountsView, view, tx, chainparams.GetConsensus(), pindex->nHeight, pindex->GetBlockTime(), &canSpend, i, &writers);
+            const auto res = ApplyCustomTx(accountsView, view, tx, chainparams.GetConsensus(), pindex->nHeight, pindex->GetBlockTime(), nullptr, i, &writers);
             if (!res.ok && (res.code & CustomTxErrCodes::Fatal)) {
                 if (pindex->nHeight >= chainparams.GetConsensus().EunosHeight) {
                     return state.Invalid(ValidationInvalidReason::CONSENSUS,
@@ -2559,24 +2577,6 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                 } else {
                     LogPrintf("skipped tx %s: %s\n", block.vtx[i]->GetHash().GetHex(), res.msg);
                 }
-            }
-
-            CAmount txfee = 0;
-            if (!Consensus::CheckTxInputs(tx, state, view, &accountsView, pindex->nHeight, txfee, chainparams, canSpend)) {
-                if (!IsBlockReason(state.GetReason())) {
-                    // CheckTxInputs may return MISSING_INPUTS or
-                    // PREMATURE_SPEND but we can't return that, as it's not
-                    // defined for a block, so we reset the reason flag to
-                    // CONSENSUS here.
-                    state.Invalid(ValidationInvalidReason::CONSENSUS, false,
-                                  state.GetRejectCode(), state.GetRejectReason(), state.GetDebugMessage());
-                }
-                return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
-            }
-            nFees += txfee;
-            if (!MoneyRange(nFees)) {
-                return state.Invalid(ValidationInvalidReason::CONSENSUS, error("%s: accumulated fee in the block out of range.", __func__),
-                                     REJECT_INVALID, "bad-txns-accumulated-fee-outofrange");
             }
 
             control.Add(vChecks);

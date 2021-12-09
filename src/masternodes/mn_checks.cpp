@@ -915,6 +915,10 @@ public:
             return Res::Err("No update arguments provided");
         }
 
+        if (obj.updates.size() > 3) {
+            return Res::Err("Too many updates provided");
+        }
+
         auto node = mnview.GetMasternode(obj.mnId);
         if (!node) {
             return Res::Err("masternode %s does not exists", obj.mnId.ToString());
@@ -931,8 +935,14 @@ public:
             return Res::Err("Masternode %s is not in 'ENABLED' state", obj.mnId.ToString());
         }
 
+        bool ownerType{false}, operatorType{false}, rewardType{false};
         for (const auto& item : obj.updates) {
             if (item.first == static_cast<uint8_t>(UpdateMasternodeType::OwnerAddress)) {
+                if (ownerType) {
+                    return Res::Err("Multiple owner updates provided");
+                }
+                ownerType = true;
+
                 bool collateralFound{false};
                 for (const auto vin : tx.vin) {
                     if (vin.prevout.hash == collateralTx && vin.prevout.n == 1) {
@@ -952,7 +962,7 @@ public:
                 }
 
                 CTxDestination dest;
-                if (!ExtractDestination(tx.vout[1].scriptPubKey, dest) || dest.index() != PKHashType && dest.index() != WitV0KeyHashType) {
+                if (!ExtractDestination(tx.vout[1].scriptPubKey, dest) || (dest.index() != PKHashType && dest.index() != WitV0KeyHashType)) {
                     return Res::Err("Owner address must be P2PKH or P2WPKH type");
                 }
 
@@ -988,21 +998,39 @@ public:
 
                 mnview.UpdateMasternodeCollateral(obj.mnId, *node, tx.GetHash(), height);
             } else if (item.first == static_cast<uint8_t>(UpdateMasternodeType::OperatorAddress)) {
+                if (operatorType) {
+                    return Res::Err("Multiple operator updates provided");
+                }
+                operatorType = true;
+
                 if (item.second.first != 1 && item.second.first != 4) {
                     return Res::Err("Operator address must be P2PKH or P2WPKH type");
                 }
+
                 const auto keyID = CKeyID(uint160(item.second.second));
                 if (mnview.GetMasternodeIdByOwner(keyID) || mnview.GetMasternodeIdByOperator(keyID)) {
                     return Res::Err("Masternode with that operator address already exists");
                 }
+
                 mnview.UpdateMasternodeOperator(obj.mnId, *node, item.second.first, keyID, height);
             } else if (item.first == static_cast<uint8_t>(UpdateMasternodeType::SetRewardAddress)) {
+                if (rewardType) {
+                    return Res::Err("Multiple reward address updates provided");
+                }
+                rewardType = true;
+
                 if (item.second.first != 1 && item.second.first != 4) {
                     return Res::Err("Reward address must be P2PKH or P2WPKH type");
                 }
+
                 const auto keyID = CKeyID(uint160(item.second.second));
                 mnview.SetForcedRewardAddress(obj.mnId, *node, item.second.first, keyID, height);
             } else if (item.first == static_cast<uint8_t>(UpdateMasternodeType::RemRewardAddress)) {
+                if (rewardType) {
+                    return Res::Err("Multiple reward address updates provided");
+                }
+                rewardType = true;
+
                 mnview.RemForcedRewardAddress(obj.mnId, *node, height);
             } else {
                 return Res::Err("Unknown update type provided");
@@ -3224,15 +3252,14 @@ Res ApplyCustomTx(CCustomCSView& mnview, const CCoinsViewCache& coins, const CTr
         }
         res = CustomTxVisit(view, coins, tx, height, consensus, txMessage, time);
 
-        if (canSpend && res && txType == CustomTxType::UpdateMasternode) {
+        if (canSpend && txType == CustomTxType::UpdateMasternode) {
             auto obj = std::get<CUpdateMasterNodeMessage>(txMessage);
             for (const auto item : obj.updates) {
                 if (item.first == static_cast<uint8_t>(UpdateMasternodeType::OwnerAddress)) {
-                    for (const auto input : tx.vin) {
-                        if (input.prevout.hash == obj.mnId && input.prevout.n == 1) {
-                            *canSpend = obj.mnId;
-                        }
+                    if (const auto node = mnview.GetMasternode(obj.mnId)) {
+                        *canSpend = node->collateralTx.IsNull() ? obj.mnId : node->collateralTx;
                     }
+                    break;
                 }
             }
         }

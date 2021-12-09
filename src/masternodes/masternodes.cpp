@@ -376,7 +376,7 @@ void CMasternodesView::UpdateMasternodeOwner(uint256 const & nodeId, CMasternode
 
 void CMasternodesView::UpdateMasternodeCollateral(uint256 const & nodeId, CMasternode& node, const uint256& newCollateralTx, const int height)
 {
-    // Remove old record, allows spending of previous collateral in this TX.
+    // Remove old record.
     EraseBy<NewCollateral>(node.collateralTx);
 
     // Store new collateral. Used by HasCollateralAuth.

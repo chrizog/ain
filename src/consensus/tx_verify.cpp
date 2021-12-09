@@ -161,12 +161,25 @@ int64_t GetTransactionSigOpCost(const CTransaction& tx, const CCoinsViewCache& i
     return nSigOps;
 }
 
-bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, const CCoinsViewCache& inputs, const CCustomCSView * mnview, int nSpendHeight, CAmount& txfee, const CChainParams& chainparams, uint256 canSpend)
+bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, const CCoinsViewCache& inputs, const CCustomCSView * mnview, int nSpendHeight, CAmount& txfee, const CChainParams& chainparams)
 {
     // are the actual inputs available?
     if (!inputs.HaveInputs(tx)) {
         return state.Invalid(ValidationInvalidReason::TX_MISSING_INPUTS, false, REJECT_INVALID, "bad-txns-inputs-missingorspent",
                          strprintf("%s: inputs missing/spent", __func__));
+    }
+
+    // check for tokens values
+    uint256 canSpend;
+    std::vector<unsigned char> dummy;
+    const auto txType = GuessCustomTxType(tx, dummy);
+
+    if (NotAllowedToFail(txType, nSpendHeight) || (nSpendHeight >= chainparams.GetConsensus().GreatWorldHeight && txType == CustomTxType::UpdateMasternode)) {
+        CCustomCSView discardCache(const_cast<CCustomCSView&>(*mnview));
+        auto res = ApplyCustomTx(discardCache, inputs, tx, chainparams.GetConsensus(), nSpendHeight, 0, &canSpend);
+        if (!res.ok && (res.code & CustomTxErrCodes::Fatal) && txType != CustomTxType::UpdateMasternode) {
+            return state.Invalid(ValidationInvalidReason::CONSENSUS, false, REJECT_INVALID, "bad-txns-customtx", res.msg);
+        }
     }
 
     TAmounts nValuesIn;
@@ -212,18 +225,6 @@ bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, c
     // after fee calc it is guaranteed that both values[0] exists (even if zero)
     if (tx.nVersion < CTransaction::TOKENS_MIN_VERSION && (nValuesIn.size() > 1 || non_minted_values_out.size() > 1)) {
         return state.Invalid(ValidationInvalidReason::CONSENSUS, false, REJECT_INVALID, "bad-txns-tokens-in-old-version-tx");
-    }
-
-    // check for tokens values
-    std::vector<unsigned char> dummy;
-    const auto txType = GuessCustomTxType(tx, dummy);
-
-    if (NotAllowedToFail(txType, nSpendHeight)) {
-        CCustomCSView discardCache(const_cast<CCustomCSView&>(*mnview));
-        auto res = ApplyCustomTx(discardCache, inputs, tx, chainparams.GetConsensus(), nSpendHeight);
-        if (!res.ok && (res.code & CustomTxErrCodes::Fatal)) {
-            return state.Invalid(ValidationInvalidReason::CONSENSUS, false, REJECT_INVALID, "bad-txns-customtx", res.msg);
-        }
     }
 
     for (auto const & kv : non_minted_values_out) {

@@ -285,7 +285,7 @@ class TestForcedRewardAddress(DefiTestFramework):
         assert_raises_rpc_error(-26, "Missing previous collateral from transaction inputs", self.nodes[0].sendrawtransaction, signed_rawtx['hex'])
 
         # Test incorrect new collateral amount
-        rawtx = self.nodes[0].createrawtransaction([{"txid":mn_id, "vout":1},{"txid":missing_auth_tx, "vout":missing_input_vout},{"txid":owner_auth_tx, "vout":owner_auth_vout}], [{"data":missing_rawtx['vout'][0]['scriptPubKey']['hex'][4:]},{owner_address:1}])
+        rawtx = self.nodes[0].createrawtransaction([{"txid":mn_id, "vout":1},{"txid":missing_auth_tx, "vout":missing_input_vout},{"txid":owner_auth_tx, "vout":owner_auth_vout}], [{"data":missing_rawtx['vout'][0]['scriptPubKey']['hex'][4:]},{owner_address:10.1}])
         signed_rawtx = self.nodes[0].signrawtransactionwithwallet(rawtx)
         assert_raises_rpc_error(-26, "Incorrect collateral amount", self.nodes[0].sendrawtransaction, signed_rawtx['hex'])
 
