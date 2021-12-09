@@ -123,7 +123,7 @@ CMasternode::State CMasternode::GetState(int height, const CCustomCSView& mnview
     return State::UNKNOWN;
 }
 
-bool CMasternode::IsActive(int height) const
+bool CMasternode::IsActive(int height, const CCustomCSView& mnview) const
 {
     State state = GetState(height, *pcustomcsview);
     if (height >= Params().GetConsensus().EunosPayaHeight) {
@@ -741,7 +741,7 @@ CTeamView::CTeam CCustomCSView::CalcNextTeam(int height, const uint256 & stakeMo
 
     std::map<arith_uint256, CKeyID, std::less<arith_uint256>> priorityMN;
     ForEachMasternode([&] (uint256 const & id, CMasternode node) {
-        if(!node.IsActive(height))
+        if(!node.IsActive(height, *this))
             return true;
 
         CDataStream ss{SER_GETHASH, PROTOCOL_VERSION};
@@ -781,7 +781,7 @@ void CCustomCSView::CalcAnchoringTeams(const uint256 & stakeModifier, const CBlo
     std::map<arith_uint256, CKeyID, std::less<arith_uint256>> authMN;
     std::map<arith_uint256, CKeyID, std::less<arith_uint256>> confirmMN;
     ForEachMasternode([&] (uint256 const & id, CMasternode node) {
-        if(!node.IsActive(pindexNew->height))
+        if(!node.IsActive(pindexNew->height, *this))
             return true;
 
         // Not in our list of MNs from last week, skip.
@@ -1075,7 +1075,7 @@ std::map<CKeyID, CKey> AmISignerNow(int height, CAnchorData::CTeam const & team)
             continue;
         }
 
-        if (node->IsActive(height) && team.find(mnId.first) != team.end()) {
+        if (node->IsActive(height, *pcustomcsview) && team.find(mnId.first) != team.end()) {
             CKey masternodeKey;
             std::vector<std::shared_ptr<CWallet>> wallets = GetWallets();
             for (auto const & wallet : wallets) {

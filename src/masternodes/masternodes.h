@@ -95,7 +95,7 @@ public:
     CMasternode();
 
     State GetState(int height, const CCustomCSView& mnview) const;
-    bool IsActive(int height) const;
+    bool IsActive(int height, const CCustomCSView& mnview) const;
 
     static std::string GetHumanReadableState(State state);
     static std::string GetTimelockToString(TimeLock timelock);

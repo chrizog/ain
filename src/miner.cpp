@@ -120,7 +120,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
         if (!myIDs)
             return nullptr;
         nodePtr = pcustomcsview->GetMasternode(myIDs->second);
-        if (!nodePtr || !nodePtr->IsActive(nHeight))
+        if (!nodePtr || !nodePtr->IsActive(nHeight, *pcustomcsview))
             return nullptr;
     }
 
@@ -722,7 +722,7 @@ namespace pos {
             tip = ::ChainActive().Tip();
             masternodeID = *optMasternodeID;
             nodePtr = pcustomcsview->GetMasternode(masternodeID);
-            if (!nodePtr || !nodePtr->IsActive(tip->height + 1))
+            if (!nodePtr || !nodePtr->IsActive(tip->height + 1, *pcustomcsview))
             {
                 /// @todo may be new status for not activated (or already resigned) MN??
                 return Status::initWaiting;

@@ -78,7 +78,7 @@ bool ContextualCheckProofOfStake(const CBlockHeader& blockHeader, const Consensu
         }
         masternodeID = *optMasternodeID;
         auto nodePtr = pcustomcsview->GetMasternode(masternodeID);
-        if (!nodePtr || !nodePtr->IsActive(blockHeader.height)) {
+        if (!nodePtr || !nodePtr->IsActive(blockHeader.height, *pcustomcsview)) {
             return false;
         }
         creationHeight = int64_t(nodePtr->creationHeight);
