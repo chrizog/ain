@@ -216,6 +216,7 @@ DEFI_CORE_H = \
   rpc/request.h \
   rpc/server.h \
   rpc/util.h \
+  rpc/stats.h \
   scheduler.h \
   script/descriptor.h \
   script/keyorigin.h \
@@ -424,6 +425,7 @@ libdefi_server_a_SOURCES = \
   rpc/mining.cpp \
   rpc/misc.cpp \
   rpc/net.cpp \
+  rpc/stats.cpp \
   rpc/rawtransaction.cpp \
   rpc/server.cpp \
   script/sigcache.cpp \
