@@ -30,6 +30,7 @@
 #include <stdint.h>
 
 class CBlockIndex;
+class CMasternodesView;
 class CTransaction;
 
 // Works instead of constants cause 'regtest' differs (don't want to overcharge chainparams)
@@ -94,8 +95,8 @@ public:
     //! empty constructor
     CMasternode();
 
-    State GetState(int height, const CCustomCSView& mnview) const;
-    bool IsActive(int height, const CCustomCSView& mnview) const;
+    State GetState(int height, const CMasternodesView& mnview) const;
+    bool IsActive(int height, const CMasternodesView& mnview) const;
 
     static std::string GetHumanReadableState(State state);
     static std::string GetTimelockToString(TimeLock timelock);

@@ -86,7 +86,7 @@ CMasternode::CMasternode()
 {
 }
 
-CMasternode::State CMasternode::GetState(int height, const CCustomCSView& mnview) const
+CMasternode::State CMasternode::GetState(int height, const CMasternodesView& mnview) const
 {
     int EunosPayaHeight = Params().GetConsensus().EunosPayaHeight;
 
@@ -123,9 +123,9 @@ CMasternode::State CMasternode::GetState(int height, const CCustomCSView& mnview
     return State::UNKNOWN;
 }
 
-bool CMasternode::IsActive(int height, const CCustomCSView& mnview) const
+bool CMasternode::IsActive(int height, const CMasternodesView& mnview) const
 {
-    State state = GetState(height, *pcustomcsview);
+    State state = GetState(height, mnview);
     if (height >= Params().GetConsensus().EunosPayaHeight) {
         return state == ENABLED;
     }
@@ -303,11 +303,7 @@ Res CMasternodesView::CreateMasternode(const uint256 & nodeId, const CMasternode
 
 Res CMasternodesView::ResignMasternode(CMasternode& node, const uint256 & nodeId, const uint256 & txid, int height)
 {
-    const auto mnview = dynamic_cast<CCustomCSView*>(this);
-    if (!mnview) {
-        return Res::Err("Must be called from object of CCustomCSView type");
-    }
-    auto state = node.GetState(height, *mnview);
+    auto state = node.GetState(height, *this);
     if (height >= Params().GetConsensus().EunosPayaHeight) {
         if (state != CMasternode::ENABLED) {
             return Res::Err("node %s state is not 'ENABLED'", nodeId.ToString());
