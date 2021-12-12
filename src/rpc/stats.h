@@ -12,15 +12,14 @@
 class CRPCStats
 {
 private:
-    std::map<std::string, UniValue> map;
+    UniValue map{UniValue::VOBJ};
 public:
-    void add(const std::string& name, const int64_t latency, const size_t payload);
+    bool add(const std::string& name, const int64_t latency, const int64_t payload);
 
     const UniValue get(const std::string& name) { return map[name]; };
 
-    std::map<std::string, UniValue> getList() { return map; };
+    const std::vector<std::string>& getKeys() { return map.getKeys(); };
 
-    // void save();
 };
 
 extern CRPCStats statsRPC;
