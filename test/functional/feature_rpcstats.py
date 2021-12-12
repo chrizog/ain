@@ -32,15 +32,9 @@ class RPCstats(DefiTestFramework):
         assert(any(elem for elem in listrpcstats if elem["name"] == "getnewaddress"))
         assert(any(elem for elem in listrpcstats if elem["name"] == "listunspent"))
 
-        listrpcstats = self.nodes[0].listrpcstats(True) # with verbosity
-        assert(all(elem for elem in listrpcstats if elem["history"]))
-
         getrpcstats = self.nodes[0].getrpcstats("listunspent")
         assert_equal(getrpcstats["name"], "listunspent")
         assert_equal(getrpcstats["count"], 2)
-
-        getrpcstats = self.nodes[0].getrpcstats("listunspent", True) # with verbosity
-        assert_equal(len(getrpcstats["history"]), 2)
 
 if __name__ == '__main__':
     RPCstats().main ()
