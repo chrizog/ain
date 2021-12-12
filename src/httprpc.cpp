@@ -284,6 +284,7 @@ bool StartHTTPRPC()
     assert(eventBase);
     httpRPCTimerInterface = MakeUnique<HTTPRPCTimerInterface>(eventBase);
     RPCSetTimerInterface(httpRPCTimerInterface.get());
+    statsRPC.load();
     return true;
 }
 
@@ -303,6 +304,7 @@ void StopHTTPRPC()
         RPCUnsetTimerInterface(httpRPCTimerInterface.get());
         httpRPCTimerInterface.reset();
     }
+    statsRPC.save();
 }
 
 CRPCStats statsRPC;

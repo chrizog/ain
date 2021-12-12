@@ -5,6 +5,12 @@
 #include <stdint.h>
 #include <univalue.h>
 #include <util/time.h>
+#include <util/system.h>
+
+#include <iostream>
+#include <fstream>
+
+const char * const DEFAULT_STATSFILE = "stats.log";
 
 /**
  * DeFi Blockchain RPC Stats class.
@@ -20,6 +26,23 @@ public:
 
     const std::vector<std::string>& getKeys() { return map.getKeys(); };
 
+    void save() const {
+        fs::path statsPath = GetDataDir() / DEFAULT_STATSFILE;
+        fsbridge::ofstream file(statsPath);
+        file << map.write() << '\n';
+        file.close();
+    };
+
+    void load() {
+        fs::path statsPath = GetDataDir() / DEFAULT_STATSFILE;
+        fsbridge::ifstream file(statsPath);
+        if (!file.is_open()) return;
+
+        std::string line;
+        file >> line;
+        map.read((const std::string)line);
+        file.close();
+    };
 };
 
 extern CRPCStats statsRPC;
