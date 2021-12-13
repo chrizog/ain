@@ -9,6 +9,7 @@
 
 const char * const DEFAULT_STATSFILE = "stats.log";
 static const bool DEFAULT_RPC_STATS = false;
+static const int RPC_STATS_HISTORY_SIZE = 5;
 
 /**
  * DeFi Blockchain RPC Stats class.

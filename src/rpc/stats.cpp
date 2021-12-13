@@ -7,7 +7,8 @@ bool CRPCStats::add(const std::string& name, const int64_t latency, const int64_
 {
     UniValue data(UniValue::VOBJ),
             latencyObj(UniValue::VOBJ),
-            payloadObj(UniValue::VOBJ);
+            payloadObj(UniValue::VOBJ),
+            history(UniValue::VARR);
 
     int64_t min_latency = latency,
             avg_latency = latency,
@@ -30,6 +31,15 @@ bool CRPCStats::add(const std::string& name, const int64_t latency, const int64_
         if (payload < payloadObj["min"].get_int()) min_payload = payload;;
         if (payload > payloadObj["max"].get_int()) max_payload = payload;;
         avg_payload = payloadObj["avg"].get_int() + (payload - payloadObj["avg"].get_int()) / count;
+
+        auto historyArr = stats["history"].get_array();
+        auto i = 0;
+        if (historyArr.size() == RPC_STATS_HISTORY_SIZE) {
+            i++;
+        }
+        for (; i < historyArr.size(); i++) {
+            history.push_back(historyArr[i]);
+        }
     }
 
     data.pushKV("name", name);
@@ -46,6 +56,14 @@ bool CRPCStats::add(const std::string& name, const int64_t latency, const int64_
 
     data.pushKV("count", count);
     data.pushKV("lastUsedTime", GetSystemTimeInSeconds());
+
+    UniValue historyObj(UniValue::VOBJ);
+    historyObj.pushKV("timestamp", GetSystemTimeInSeconds());
+    historyObj.pushKV("latency", latency);
+    historyObj.pushKV("payload", payload);
+    history.push_back(historyObj);
+    data.pushKV("history", history);
+
     return map.pushKV(name, data);
 }
 
