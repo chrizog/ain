@@ -7,9 +7,6 @@
 #include <util/time.h>
 #include <util/system.h>
 
-#include <iostream>
-#include <fstream>
-
 const char * const DEFAULT_STATSFILE = "stats.log";
 static const bool DEFAULT_RPC_STATS = false;
 
