@@ -11,6 +11,7 @@
 #include <fstream>
 
 const char * const DEFAULT_STATSFILE = "stats.log";
+static const bool DEFAULT_RPC_STATS = false;
 
 /**
  * DeFi Blockchain RPC Stats class.

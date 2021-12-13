@@ -1,7 +1,7 @@
 #include <rpc/stats.h>
+
 #include <rpc/server.h>
 #include <rpc/util.h>
-#include <httprpc.h>
 
 bool CRPCStats::add(const std::string& name, const int64_t latency, const int64_t payload)
 {

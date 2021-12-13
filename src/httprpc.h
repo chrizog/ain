@@ -8,8 +8,6 @@
 #include <string>
 #include <map>
 
-static const bool DEFAULT_RPC_STATS = false;
-
 /** Start HTTP RPC subsystem.
  * Precondition; HTTP and RPC has been started.
  */
