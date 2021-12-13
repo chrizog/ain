@@ -72,8 +72,7 @@ static UniValue getrpcstats(const JSONRPCRequest& request)
     RPCHelpMan{"getrpcstats",
         "\nList used RPC commands for this session.\n",
         {
-            {"command", RPCArg::Type::STR, RPCArg::Optional::NO, "The command to get stats for."},
-            {"verbose", RPCArg::Type::BOOL, RPCArg::Optional::OMITTED, "If set, send full history for this command."}
+            {"command", RPCArg::Type::STR, RPCArg::Optional::NO, "The command to get stats for."}
         },
         RPCResults{},
         RPCExamples{
@@ -91,7 +90,6 @@ static UniValue listrpcstats(const JSONRPCRequest& request)
     RPCHelpMan{"listrpcstats",
         "\nList used RPC commands for this session.\n",
         {
-            {"verbose", RPCArg::Type::BOOL, RPCArg::Optional::OMITTED, "If set, send full history for each command."}
         },
         RPCResults{},
         RPCExamples{
@@ -112,8 +110,8 @@ static UniValue listrpcstats(const JSONRPCRequest& request)
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         argNames
   //  --------------------- ------------------------  -----------------------  ----------
-    { "stats",            "getrpcstats",              &getrpcstats,          {"command", "verbose"} },
-    { "stats",            "listrpcstats",             &listrpcstats,         {"verbose"} },
+    { "stats",            "getrpcstats",              &getrpcstats,          {"command"} },
+    { "stats",            "listrpcstats",             &listrpcstats,         {} },
 };
 // clang-format on
 

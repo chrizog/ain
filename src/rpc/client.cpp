@@ -197,8 +197,6 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "addpoolliquidity", 0, "from" },
     { "addpoolliquidity", 2, "inputs" },
     { "removepoolliquidity", 2, "inputs" },
-    { "getrpcstats", 1, "verbose" },
-    { "listrpcstats", 0, "verbose" },
 
     { "listpoolpairs", 0, "pagination" },
     { "listpoolpairs", 1, "verbose" },
