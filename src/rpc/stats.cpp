@@ -33,7 +33,7 @@ bool CRPCStats::add(const std::string& name, const int64_t latency, const int64_
         avg_payload = payloadObj["avg"].get_int() + (payload - payloadObj["avg"].get_int()) / count;
 
         auto historyArr = stats["history"].get_array();
-        auto i = 0;
+        size_t i = 0;
         if (historyArr.size() == RPC_STATS_HISTORY_SIZE) {
             i++;
         }
