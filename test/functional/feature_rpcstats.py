@@ -10,12 +10,14 @@ from test_framework.test_framework import DefiTestFramework
 from test_framework.util import (
     assert_equal,
 )
+from test_framework.authproxy import JSONRPCException
 
 class RPCstats(DefiTestFramework):
     def set_test_params(self):
-        self.num_nodes = 1
+        self.num_nodes = 2
         self.setup_clean_chain = True
         self.extra_args = [
+            ['-acindex=1', '-txnotokens=0', '-amkheight=50', '-bayfrontheight=50', '-bayfrontgardensheight=50', '-rpcstats'],
             ['-acindex=1', '-txnotokens=0', '-amkheight=50', '-bayfrontheight=50', '-bayfrontgardensheight=50'],
         ]
 
@@ -35,6 +37,18 @@ class RPCstats(DefiTestFramework):
         getrpcstats = self.nodes[0].getrpcstats("listunspent")
         assert_equal(getrpcstats["name"], "listunspent")
         assert_equal(getrpcstats["count"], 2)
+
+        try:
+            self.nodes[1].getrpcstats()
+        except JSONRPCException as e:
+            errorString = e.error['message']
+        assert("Method not found" in errorString)
+
+        try:
+            self.nodes[1].listrpcstats()
+        except JSONRPCException as e:
+            errorString = e.error['message']
+        assert("Method not found" in errorString)
 
 if __name__ == '__main__':
     RPCstats().main ()

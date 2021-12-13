@@ -1,6 +1,7 @@
 #include <rpc/stats.h>
 #include <rpc/server.h>
 #include <rpc/util.h>
+#include <httprpc.h>
 
 bool CRPCStats::add(const std::string& name, const int64_t latency, const int64_t payload)
 {
@@ -100,6 +101,8 @@ static const CRPCCommand commands[] =
 
 void RegisterStatsRPCCommands(CRPCTable &t)
 {
-    for (unsigned int vcidx = 0; vcidx < ARRAYLEN(commands); vcidx++)
-        t.appendCommand(commands[vcidx].name, &commands[vcidx]);
+    if (gArgs.GetBoolArg("-rpcstats", DEFAULT_RPC_STATS)) {
+        for (unsigned int vcidx = 0; vcidx < ARRAYLEN(commands); vcidx++)
+            t.appendCommand(commands[vcidx].name, &commands[vcidx]);
+    }
 }
