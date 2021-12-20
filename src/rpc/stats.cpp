@@ -23,13 +23,13 @@ bool CRPCStats::add(const std::string& name, const int64_t latency, const int64_
         count = stats["count"].get_int() + 1;
 
         latencyObj = stats["latency"].get_obj();
-        if (latency < latencyObj["min"].get_int()) min_latency = latency;
-        if (latency > latencyObj["max"].get_int()) max_latency = latency;;
+        min_latency = std::min(latency, latencyObj["min"].get_int64());
+        max_latency = std::max(latency, latencyObj["max"].get_int64());
         avg_latency = latencyObj["avg"].get_int() + (latency - latencyObj["avg"].get_int()) / count;
 
         payloadObj = stats["payload"].get_obj();
-        if (payload < payloadObj["min"].get_int()) min_payload = payload;;
-        if (payload > payloadObj["max"].get_int()) max_payload = payload;;
+        min_payload = std::min(payload, payloadObj["min"].get_int64());
+        max_payload = std::max(payload, payloadObj["max"].get_int64());
         avg_payload = payloadObj["avg"].get_int() + (payload - payloadObj["avg"].get_int()) / count;
 
         auto historyArr = stats["history"].get_array();
