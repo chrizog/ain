@@ -44,14 +44,14 @@ bool CRPCStats::add(const std::string& name, const int64_t latency, const int64_
 
     data.pushKV("name", name);
 
-    latencyObj.pushKV("min", latency);
-    latencyObj.pushKV("avg", latency);
-    latencyObj.pushKV("max", latency);
+    latencyObj.pushKV("min", min_latency);
+    latencyObj.pushKV("avg", avg_latency);
+    latencyObj.pushKV("max", max_latency);
     data.pushKV("latency", latencyObj);
 
-    payloadObj.pushKV("min", payload);
-    payloadObj.pushKV("avg", payload);
-    payloadObj.pushKV("max", payload);
+    payloadObj.pushKV("min", min_payload);
+    payloadObj.pushKV("avg", avg_payload);
+    payloadObj.pushKV("max", max_payload);
     data.pushKV("payload", payloadObj);
 
     data.pushKV("count", count);
