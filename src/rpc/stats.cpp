@@ -16,7 +16,8 @@ bool CRPCStats::add(const std::string& name, const int64_t latency, const int64_
             min_payload = payload,
             avg_payload = payload,
             max_payload = payload,
-            count       = 1;
+            count       = 1,
+            timestamp   = GetSystemTimeInSeconds();
 
     auto stats = statsRPC.get(name);
     if (!stats.empty()) {
@@ -55,10 +56,10 @@ bool CRPCStats::add(const std::string& name, const int64_t latency, const int64_
     data.pushKV("payload", payloadObj);
 
     data.pushKV("count", count);
-    data.pushKV("lastUsedTime", GetSystemTimeInSeconds());
+    data.pushKV("lastUsedTime", timestamp);
 
     UniValue historyObj(UniValue::VOBJ);
-    historyObj.pushKV("timestamp", GetSystemTimeInSeconds());
+    historyObj.pushKV("timestamp", timestamp);
     historyObj.pushKV("latency", latency);
     historyObj.pushKV("payload", payload);
     history.push_back(historyObj);
