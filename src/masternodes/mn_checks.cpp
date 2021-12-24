@@ -257,7 +257,7 @@ public:
     Res operator()(CUpdateMasterNodeMessage& obj) const {
         // Temporarily disabled for 2.2
         return Res::Err("updatemasternode is disabled for Fort Canning");
-        
+
         auto res = isPostFortCanningFork();
         return !res ? res : serialize(obj);
     }
@@ -955,7 +955,7 @@ public:
     Res operator()(const CUpdateMasterNodeMessage& obj) const {
         // Temporarily disabled for 2.2
         return Res::Err("updatemasternode is disabled for Fort Canning");
-        
+
         auto res = HasCollateralAuth(obj.mnId);
         return !res ? res : mnview.UpdateMasternode(obj.mnId, obj.operatorType, obj.operatorAuthAddress, height);
     }
@@ -2682,6 +2682,16 @@ public:
             if (!res)
                 return res;
 
+            if (static_cast<int>(height) >= consensus.FortCanningMuseumHeight && subLoan < it->second)
+            {
+                auto newRate = mnview.GetInterestRate(obj.vaultId, tokenId);
+                if (!newRate)
+                    return Res::Err("Cannot get interest rate for this token (%s)!", loanToken->symbol);
+
+                if (newRate->interestPerBlock == 0)
+                        return Res::Err("Cannot payback this amount of loan for %s, either payback full amount or less than this amount!", loanToken->symbol);
+            }
+
             res = mnview.SubMintedTokens(loanToken->creationTx, subLoan);
             if (!res)
                 return res;
@@ -2739,10 +2749,19 @@ public:
             auto amount = MultiplyAmounts(batch->loanAmount.nValue, COIN + data->liquidationPenalty);
             if (amount > obj.amount.nValue)
                 return Res::Err("First bid should include liquidation penalty of %d%%", data->liquidationPenalty * 100 / COIN);
+
+            if (static_cast<int>(height) >= consensus.FortCanningMuseumHeight
+            && data->liquidationPenalty && obj.amount.nValue == batch->loanAmount.nValue)
+                return Res::Err("First bid should be higher than batch one");
         } else {
             auto amount = MultiplyAmounts(bid->second.nValue, COIN + (COIN / 100));
             if (amount > obj.amount.nValue)
                 return Res::Err("Bid override should be at least 1%% higher than current one");
+
+            if (static_cast<int>(height) >= consensus.FortCanningMuseumHeight
+            && obj.amount.nValue == bid->second.nValue)
+                return Res::Err("Bid override should be higher than last one");
+
             // immediate refund previous bid
             CalculateOwnerRewards(bid->first);
             mnview.AddBalance(bid->first, bid->second);
@@ -2935,7 +2954,7 @@ ResVal<uint256> ApplyAnchorRewardTx(CCustomCSView & mnview, CTransaction const &
         return Res::ErrDbg("bad-ar-curteam", "anchor wrong current team");
     }
 
-    if (finMsg.nextTeam != mnview.CalcNextTeam(prevStakeModifier)) {
+    if (finMsg.nextTeam != mnview.CalcNextTeam(height, prevStakeModifier)) {
         return Res::ErrDbg("bad-ar-nextteam", "anchor wrong next team");
     }
     mnview.SetTeam(finMsg.nextTeam);
@@ -3257,7 +3276,7 @@ Res  SwapToDFIOverUSD(CCustomCSView & mnview, DCT_ID tokenId, CAmount amount, CS
     if (!token)
         return Res::Err("Cannot find token with id %s!", tokenId.ToString());
 
-    // TODO: Optimize double look up later when first token is DUSD. 
+    // TODO: Optimize double look up later when first token is DUSD.
     auto dUsdToken = mnview.GetToken("DUSD");
     if (!dUsdToken)
         return Res::Err("Cannot find token DUSD");
