@@ -3,6 +3,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file LICENSE or http://www.opensource.org/licenses/mit-license.php.
 
+
 #if defined(HAVE_CONFIG_H)
 #include <config/defi-config.h>
 #endif
@@ -22,6 +23,7 @@
 #include <httpserver.h>
 #include <index/blockfilterindex.h>
 #include <index/txindex.h>
+#include <index/price_index.h>
 #include <interfaces/chain.h>
 #include <key.h>
 #include <key_io.h>

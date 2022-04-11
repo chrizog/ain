@@ -141,6 +141,10 @@ DEFI_CORE_H = \
   index/base.h \
   index/blockfilterindex.h \
   index/txindex.h \
+  index/price_index.h \
+  index/price_index/add_liquidity_extractor.h \
+  index/price_index/price_database.h \
+  index/price_index/price_entry.h \
   indirectmap.h \
   init.h \
   interfaces/chain.h \
@@ -369,6 +373,9 @@ libdefi_server_a_SOURCES = \
   index/base.cpp \
   index/blockfilterindex.cpp \
   index/txindex.cpp \
+  index/price_index.cpp \
+  index/price_index/add_liquidity_extractor.cpp \
+  index/price_index/price_database.cpp \
   interfaces/chain.cpp \
   init.cpp \
   dbwrapper.cpp \
@@ -693,6 +700,9 @@ defid_LDADD = \
   $(LIBSECP256K1)
 
 defid_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS)
+defid_LDADD += /usr/local/lib/libSQLiteCpp.a
+defid_LDADD += /usr/local/lib/libsqlite3.a
+
 
 # defi-cli binary #
 defi_cli_SOURCES = defi-cli.cpp
