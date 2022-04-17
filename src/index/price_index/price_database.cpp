@@ -1,6 +1,7 @@
 #include "price_database.h"
 
 #include <sstream>
+#include <cassert>
 
 #include <SQLiteCpp/Transaction.h>
 
