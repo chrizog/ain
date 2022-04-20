@@ -27,6 +27,7 @@ DEFI_INCLUDES=-I$(builddir) $(BDB_CPPFLAGS) $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS
 DEFI_INCLUDES += -I$(srcdir)/secp256k1/include
 DEFI_INCLUDES += $(UNIVALUE_CFLAGS)
 DEFI_INCLUDES += $(SPV_INCLUDES)
+DEFI_INCLUDES += -I/usr/local/include/
 
 LIBDEFI_SERVER=libdefi_server.a
 LIBDEFI_COMMON=libdefi_common.a
@@ -702,6 +703,7 @@ defid_LDADD = \
 defid_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS)
 defid_LDADD += /usr/local/lib/libSQLiteCpp.a
 defid_LDADD += /usr/local/lib/libsqlite3.a
+defid_LDADD += /lib/x86_64-linux-gnu/libdl.so.2
 
 
 # defi-cli binary #
