@@ -50,6 +50,7 @@ PriceEntry::PriceData extract_price_data_add_liquidity(const CTransaction& add_l
     result.id_token_b = it_balances->first.v;
     result.amount_b = it_balances->second;
 
+    /*
     if (result.id_token_a > result.id_token_b) {
         auto tmp_token = result.id_token_a;
         auto tmp_amount = result.amount_a;
@@ -58,6 +59,7 @@ PriceEntry::PriceData extract_price_data_add_liquidity(const CTransaction& add_l
         result.id_token_b = tmp_token;
         result.amount_b = tmp_amount;
     }
+    */
 
     // LogPrintf("%d: %d; %d: %d\n", id_token_A, amountA, id_token_B, amountB);
     return result;

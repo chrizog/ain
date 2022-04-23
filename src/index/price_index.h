@@ -1,7 +1,10 @@
 #ifndef DEFI_INDEX_PRICE_INDEX_H
 #define DEFI_INDEX_PRICE_INDEX_H
 
+
 #include <index/base.h>
+#include <index/price_index/price_database.h>
+
 #include <primitives/transaction.h>
 #include <primitives/block.h>
 
@@ -23,6 +26,10 @@ protected:
     const char* GetName() const override { return "dexpriceindex"; }
 
 private:
+    void init_price_database();
+
+    price_index::Storage price_storage;
+
     const std::unique_ptr<BaseIndex::DB> m_db;
 };
 
