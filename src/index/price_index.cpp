@@ -41,6 +41,8 @@ void PriceIndex::init_price_database()
 
 bool PriceIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex)
 {
+    static uint64_t last_log_timestamp = 0;
+
     // LogPrintf("PriceIndex WriteBlock\n");
     for (const CTransactionRef& tx_ref : block.vtx) {
         std::vector<unsigned char> metadata;
@@ -61,8 +63,14 @@ bool PriceIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex)
             auto price_data = extract_price_data_add_liquidity(*tx_ref);
 
             PriceEntry price_entry{price_data_header, price_data};
-            // LogPrintf("%s\n", price_entry.ToString());
 
+            int64_t current_time = GetTimeMillis();
+            if ((current_time - last_log_timestamp) > (20 * 1000))
+            {
+                LogPrintf("%s\n", price_entry.ToString());
+                last_log_timestamp = current_time;
+            }
+            
             std::vector<price_index::KeyValuePair> key_value_pairs;
             key_value_pairs.push_back(price_index::KeyValuePair{"timestamp", static_cast<int64_t>(price_entry.header.timestamp)});
             key_value_pairs.push_back(price_index::KeyValuePair{"blockheight", static_cast<int64_t>(price_entry.header.blockheight)});
