@@ -41,9 +41,16 @@ void PriceIndex::init_price_database()
 
 bool PriceIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex)
 {
+    static uint64_t last_log_timestamp_write_block = 0;
     static uint64_t last_log_timestamp = 0;
 
-    // LogPrintf("PriceIndex WriteBlock\n");
+    int64_t current_time = GetTimeMillis();
+    if ((current_time - last_log_timestamp_write_block) > (60 * 1000))
+    {
+        LogPrintf("PriceIndex WriteBlock.. height = %d\n", pindex->nHeight);
+        last_log_timestamp_write_block = current_time;
+    }
+
     for (const CTransactionRef& tx_ref : block.vtx) {
         std::vector<unsigned char> metadata;
         CustomTxType tx_type = GuessCustomTxType(*tx_ref, metadata);
@@ -64,7 +71,6 @@ bool PriceIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex)
 
             PriceEntry price_entry{price_data_header, price_data};
 
-            int64_t current_time = GetTimeMillis();
             if ((current_time - last_log_timestamp) > (20 * 1000))
             {
                 LogPrintf("%s\n", price_entry.ToString());
