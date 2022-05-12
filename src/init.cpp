@@ -1574,6 +1574,8 @@ bool AppInitMain(InitInterfaces& interfaces)
     nTotalCache -= nBlockTreeDBCache;
     int64_t nTxIndexCache = std::min(nTotalCache / 8, gArgs.GetBoolArg("-txindex", DEFAULT_TXINDEX) ? nMaxTxIndexCache << 20 : 0);
     nTotalCache -= nTxIndexCache;
+    int64_t nPriceIndexCache = std::min(nTotalCache / 8, gArgs.GetBoolArg("-priceindex", false) ? nMaxTxIndexCache << 20 : 0);
+    nTotalCache -= nPriceIndexCache;
     int64_t filter_index_cache = 0;
     if (!g_enabled_filter_types.empty()) {
         size_t n_indexes = g_enabled_filter_types.size();
