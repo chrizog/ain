@@ -28,8 +28,6 @@ protected:
 private:
     void init_price_database();
 
-    price_index::Storage price_storage;
-
     const std::unique_ptr<BaseIndex::DB> m_db;
 };
 

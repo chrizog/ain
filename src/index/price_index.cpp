@@ -17,10 +17,10 @@ namespace price_index {
 constexpr char DB_BEST_BLOCK = 'B';
 
 PriceIndex::PriceIndex(size_t n_cache_size, bool f_memory, bool f_wipe) // new-line
-    : price_storage((GetDataDir() / "dex_prices.db").string()),
-      m_db(MakeUnique<BaseIndex::DB>(GetDataDir() / "indexes" / "dexpriceindex", n_cache_size, f_memory, f_wipe))
+    : m_db(MakeUnique<BaseIndex::DB>(GetDataDir() / "indexes" / "dexpriceindex", n_cache_size, f_memory, f_wipe))
 {
     m_db->Erase(DB_BEST_BLOCK);
+
     init_price_database();
 }
 
@@ -36,6 +36,8 @@ void PriceIndex::init_price_database()
     columns.push_back(price_index::TableColumn{"amount_b", "INTEGER NOT NULL"});
 
     price_index::Table price_table("prices", columns);
+
+    price_index::Storage price_storage{ (GetDataDir() / "dex_prices.db").string() };
     price_storage.execute_transaction(price_table.get_create_statement());
 }
 
@@ -88,6 +90,7 @@ bool PriceIndex::WriteBlock(const CBlock& block, const CBlockIndex* pindex)
 
             price_index::Insert insert_statement{"prices", key_value_pairs};
             try {
+                price_index::Storage price_storage{ (GetDataDir() / "dex_prices.db").string() };
                 price_storage.execute_transaction(insert_statement.ToString());
             } catch (std::exception e) {
                 LogPrintf("Insert failed at blockheight %d: %s\n", price_entry.header.blockheight, e.what());
