@@ -62,7 +62,7 @@ std::string Insert::ToString() const
 }
 
 
-Table::Table(const std::string name, const std::vector<TableColumn> columns) : name_(name), columns_(columns)
+Table::Table(const std::string name, const std::vector<TableColumn> columns, const std::string constraint) : name_(name), columns_(columns)
 {
     std::stringstream ss;
     ss << "CREATE TABLE IF NOT EXISTS \"" << name << "\" (";
@@ -73,6 +73,9 @@ Table::Table(const std::string name, const std::vector<TableColumn> columns) : n
         ss << column.attributes << ", ";
     }
 
+    if (constraint.size() > 0) {
+        ss << constraint << ", ";
+    }
     ss << "PRIMARY KEY(\"id\" AUTOINCREMENT)";
     ss << ");";
     create_statement_ = ss.str();

@@ -4,7 +4,9 @@
 
 #include <index/base.h>
 #include <index/price_index/price_database.h>
+#include <index/price_index/daily_accumulator.h>
 
+#include <memory>
 #include <primitives/transaction.h>
 #include <primitives/block.h>
 
@@ -29,6 +31,8 @@ private:
     void init_price_database();
 
     const std::unique_ptr<BaseIndex::DB> m_db;
+
+    DayAccumulatorMap accumulators;
 };
 
 

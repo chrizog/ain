@@ -4,7 +4,7 @@
 
 DIST_SUBDIRS = secp256k1 univalue
 
-AM_LDFLAGS = $(PTHREAD_CFLAGS) $(LIBTOOL_LDFLAGS) $(HARDENED_LDFLAGS) $(GPROF_LDFLAGS) $(SANITIZER_LDFLAGS)
+AM_LDFLAGS = $(PTHREAD_CFLAGS) $(LIBTOOL_LDFLAGS) $(HARDENED_LDFLAGS) $(GPROF_LDFLAGS) $(SANITIZER_LDFLAGS) -ldl
 AM_CXXFLAGS = $(DEBUG_CXXFLAGS) $(HARDENED_CXXFLAGS) $(WARN_CXXFLAGS) $(NOWARN_CXXFLAGS) $(ERROR_CXXFLAGS) $(GPROF_CXXFLAGS) $(SANITIZER_CXXFLAGS) -ldl
 AM_CPPFLAGS = $(DEBUG_CPPFLAGS) $(HARDENED_CPPFLAGS) -ldl
 AM_LIBTOOLFLAGS = --preserve-dup-deps
@@ -143,6 +143,8 @@ DEFI_CORE_H = \
   index/blockfilterindex.h \
   index/txindex.h \
   index/price_index.h \
+  index/price_index/date.h \
+  index/price_index/daily_accumulator.h \
   index/price_index/add_liquidity_extractor.h \
   index/price_index/price_database.h \
   index/price_index/price_entry.h \
@@ -376,6 +378,7 @@ libdefi_server_a_SOURCES = \
   index/txindex.cpp \
   index/price_index.cpp \
   index/price_index/add_liquidity_extractor.cpp \
+  index/price_index/daily_accumulator.cpp \
   index/price_index/price_database.cpp \
   interfaces/chain.cpp \
   init.cpp \

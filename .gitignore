@@ -146,3 +146,5 @@ dist/
 
 # compile_commands.json
 compile_commands.json
+
+db-4.8.30/*

@@ -65,7 +65,7 @@ private:
 class Table
 {
 public:
-    Table(const std::string name, const std::vector<TableColumn> columns);
+    Table(const std::string name, const std::vector<TableColumn> columns, const std::string constraint = "");
     std::string get_create_statement() const { return create_statement_; }
 
 private:

@@ -6,6 +6,7 @@
 
 #include <index/price_index/add_liquidity_extractor.h>
 #include <index/price_index/price_database.h>
+#include <index/price_index/daily_accumulator.h>
 
 #include <string>
 #include <cstdio>
@@ -96,6 +97,32 @@ BOOST_AUTO_TEST_CASE(InsertionTest)
     storage.execute_transaction(insert_statement.ToString());
 
     remove(database_name.c_str());
+}
+
+BOOST_AUTO_TEST_CASE(DayAccumulatorTest)
+{
+    price_index::DayAccumulator acc;
+    bool result{false};
+
+    std::uint64_t start_timestamp = 1652980134;
+
+    result = acc.update(start_timestamp, 1.0);
+    BOOST_CHECK_EQUAL(result, false);
+
+    result = acc.update(start_timestamp + 1, 2.0);
+    BOOST_CHECK_EQUAL(result, false);
+
+    result = acc.update(start_timestamp + (60 * 60 * 24), 1.5);
+    BOOST_CHECK_EQUAL(result, true);
+    auto x = acc.get_last_record();
+    BOOST_CHECK_EQUAL(x.high, 2.0);
+    BOOST_CHECK_EQUAL(x.low, 1.0);
+
+    std::stringstream ss;
+    ss << x.day;
+    std::string date_string = ss.str();
+    BOOST_CHECK_EQUAL(date_string, "2022-05-19");
+
 }
 
 BOOST_AUTO_TEST_SUITE_END()
