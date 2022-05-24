@@ -81,12 +81,11 @@ Table::Table(const std::string name, const std::vector<TableColumn> columns, con
     create_statement_ = ss.str();
 };
 
-Storage::Storage(const std::string path) : path_(path),
-                                           db_(path_, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE){};
-
+Storage::Storage(const std::string path) : path_(path) {};
 
 void Storage::execute_transaction(const std::string& statement)
 {
+    SQLite::Database db_(path_, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE);
     SQLite::Transaction transaction(db_);
     db_.exec(statement);
     transaction.commit();

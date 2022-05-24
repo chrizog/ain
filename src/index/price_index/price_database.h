@@ -82,7 +82,6 @@ public:
 
 private:
     const std::string path_;
-    SQLite::Database db_;
 };
 
 } // namespace price_index
