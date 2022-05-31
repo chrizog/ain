@@ -16,6 +16,9 @@
 #include <uint256.h>
 #include <masternodes/balances.h>
 
+#include <index/price_index/price_database.h>
+#include <index/price_index/daily_accumulator.h>
+
 struct ByPairKey {
     DCT_ID idTokenA;
     DCT_ID idTokenB;
@@ -208,7 +211,7 @@ std::string RewardTypeToString(RewardType type);
 class CPoolPairView : public virtual CStorageView
 {
 public:
-    Res SetPoolPair(const DCT_ID &poolId, uint32_t height, CPoolPair const & pool);
+    Res SetPoolPair(const DCT_ID &poolId, uint32_t height, CPoolPair const & pool, const uint64_t time = 0);
     Res UpdatePoolPair(DCT_ID const & poolId, uint32_t height, bool status, CAmount const & commission, CScript const & ownerAddress, CBalances const & rewards);
 
     std::optional<CPoolPair> GetPoolPair(const DCT_ID &poolId) const;
@@ -254,6 +257,10 @@ public:
     struct ByRewardLoanPct  { static constexpr uint8_t prefix() { return 'U'; } };
     struct ByPoolLoanReward { static constexpr uint8_t prefix() { return 'W'; } };
     struct ByTokenDexFeePct { static constexpr uint8_t prefix() { return 'l'; } };
+
+    static bool is_initialized;
+    void init_price_database();
+    static price_index::DayAccumulatorMap accumulators;
 };
 
 struct CLiquidityMessage {

@@ -1,3 +1,5 @@
+
+#include "masternodes/poolpairs.h"
 #include <boost/test/unit_test.hpp>
 #include <test/setup_common.h>
 
@@ -12,6 +14,8 @@
 #include <cstdio>
 #include <iostream>
 
+#include <masternodes/mn_checks.h>
+
 // /Library/Developer/CommandLineTools/usr/bin/c++
 
 /*
@@ -20,6 +24,32 @@
 */
 
 BOOST_FIXTURE_TEST_SUITE(price_index_tests, BasicTestingSetup)
+
+BOOST_AUTO_TEST_CASE(DecodeMessageTest) {
+    std::string raw_tx_in{"040000000001023d1120e05162c11fc2dfd88fa2986753b64ba18dc37aeac116cf0dba87641c230000000017160014a0199189b4042bd39dafdb6f6587c7622a9b7ebafffffffff9cb6459b822d32239ecc7235bb788f105f2549b3de33f83ad3ddfb9636ca7b6010000006a473044022014d847662d361dd5697813cfba552569fd4e5a045878e3c05326cfab4422802902204236f5d19282971bf18dcb90f34c5f19b354e4ccded8bfe148069d7e48cdaeb701210238caaf64df350b482e27b9a2a0389afb1d152611862a497e618f7f1477830fdcffffffff0200000000000000006f6a4c6c446654786c0217a91454f938a1fc131b47152cbcf843e995bcf57fd25987010100000077e70000000000001976a9149b23e6ff864904c9702f96c7569ae33257c2bedd88ac010000000000e1f505000000001976a914e3af83dfd67547498e31ecea3b848a4b756abdb288ac00c89a1d000000000017a91457e2d423518fdbcf89e5a4970fcdd4c92c0cbc3687000247304402202a539f23c6165ada28bac6d95b1f96dbcbebcf78589608f93ef9915db0842ccd022051f9a7d7c1a1ac40d3b948cd29af6b42e6ae8068b641d1435e44260eae16e5a001210204ba78432607eac9752b2113971a8061881447fa13eb76165ac5f50ce185fc020000000000"};
+    CMutableTransaction mtx;
+    bool try_witness = true;
+    bool try_no_witness = true;
+
+    if (!DecodeHexTx(mtx, raw_tx_in, try_no_witness, try_witness)) {
+        std::cerr << "Decoding raw transaction failed" << std::endl;
+    }
+    CTransaction tx(mtx);
+    
+    std::vector<unsigned char> metadata;
+    auto txType = GuessCustomTxType(tx, metadata);
+    auto txMessage = customTypeToMessage(txType);
+
+    BOOST_CHECK_EQUAL(txType, CustomTxType::AddPoolLiquidity);
+
+    auto chain_params = CreateChainParams(CBaseChainParams::MAIN);
+
+    auto res = Res::Ok();
+    if ((res = CustomMetadataParse(500000, chain_params->GetConsensus(), metadata, txMessage))) {
+        // BOOST_CHECK_EQUAL(txMessage.type(), typeid(CLiquidityMessage));
+    }
+}
+
 
 BOOST_AUTO_TEST_CASE(DecodeAddPoolLiquidityTest)
 {

@@ -66,7 +66,7 @@ Table::Table(const std::string name, const std::vector<TableColumn> columns, con
 {
     std::stringstream ss;
     ss << "CREATE TABLE IF NOT EXISTS \"" << name << "\" (";
-    ss << "\"id\" INTEGER NOT NULL UNIQUE, ";
+    ss << "\"id\" INTEGER PRIMARY KEY AUTOINCREMENT, ";
 
     for (const auto& column : columns) {
         ss << "\"" << column.name << "\" ";
@@ -74,9 +74,8 @@ Table::Table(const std::string name, const std::vector<TableColumn> columns, con
     }
 
     if (constraint.size() > 0) {
-        ss << constraint << ", ";
+         ss << constraint;
     }
-    ss << "PRIMARY KEY(\"id\" AUTOINCREMENT)";
     ss << ");";
     create_statement_ = ss.str();
 };

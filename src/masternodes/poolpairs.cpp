@@ -2,10 +2,31 @@
 // Distributed under the MIT software license, see the accompanying
 // file LICENSE or http://www.opensource.org/licenses/mit-license.php.
 
+#include "index/price_index/daily_accumulator.h"
+#include "logging.h"
 #include <arith_uint256.h>
 #include <masternodes/poolpairs.h>
 #include <core_io.h>
 #include <primitives/transaction.h>
+
+bool CPoolPairView::is_initialized{false};
+
+void CPoolPairView::init_price_database()
+{
+    std::vector<price_index::TableColumn> columns;
+    columns.push_back(price_index::TableColumn{"date", "TEXT NOT NULL"});
+    columns.push_back(price_index::TableColumn{"id_token_a", "INTEGER NOT NULL"});
+    columns.push_back(price_index::TableColumn{"id_token_b", "INTEGER NOT NULL"});
+    columns.push_back(price_index::TableColumn{"high", "REAL NOT NULL"});
+    columns.push_back(price_index::TableColumn{"low", "REAL NOT NULL"});
+
+    price_index::Table price_table("prices", columns, "UNIQUE(date, id_token_a, id_token_b)");
+
+    price_index::Storage price_storage{(GetDataDir() / "dex_poolpairs.db").string()};
+    price_storage.execute_transaction(price_table.get_create_statement());
+
+    this->is_initialized = true;
+}
 
 struct PoolSwapValue {
     bool swapEvent;
@@ -64,7 +85,9 @@ ReturnType ReadValueAt(CPoolPairView * poolView, PoolHeightKey const & poolKey) 
     return {};
 }
 
-Res CPoolPairView::SetPoolPair(DCT_ID const & poolId, uint32_t height, CPoolPair const & pool)
+price_index::DayAccumulatorMap CPoolPairView::accumulators{};
+
+Res CPoolPairView::SetPoolPair(DCT_ID const & poolId, uint32_t height, CPoolPair const & pool, const uint64_t time)
 {
     if (pool.idTokenA == pool.idTokenB) {
         return Res::Err("Error: tokens IDs are the same.");
@@ -94,6 +117,8 @@ Res CPoolPairView::SetPoolPair(DCT_ID const & poolId, uint32_t height, CPoolPair
     auto poolPairByTokens = ReadBy<ByIDPair, ByPairKey>(poolId);
     assert(poolPairByTokens);
 
+    // LogPrintf("Set poolpair reserveA: %d\n", pool.reserveA);
+
     // update
     if(poolPairByID->idTokenA == pool.idTokenA
     && poolPairByID->idTokenB == pool.idTokenB
@@ -101,7 +126,44 @@ Res CPoolPairView::SetPoolPair(DCT_ID const & poolId, uint32_t height, CPoolPair
     && poolPairByTokens->idTokenB == pool.idTokenB) {
         if (poolPairByID->reserveA != pool.reserveA
         || poolPairByID->reserveB != pool.reserveB) {
+            
             WriteBy<ByReserves>(poolId, PoolReservesValue{pool.reserveA, pool.reserveB});
+            
+            if (!this->is_initialized) {
+                this->init_price_database();
+            }
+
+            // LogPrintf("Set poolpair reserveA: %d\n", pool.reserveA);
+            // LogPrintf("Time: %d\n", time);
+            auto& accumulator = accumulators.get_accumulator(pool.idTokenA.v, pool.idTokenB.v);
+            const double ratio = static_cast<double>(pool.reserveA) / static_cast<double>(pool.reserveB);
+            
+            if (time != 0) {
+                const auto should_write_to_disk = accumulator.update(time, ratio);
+                if (should_write_to_disk) {
+                    auto last_record = accumulator.get_last_record();
+                    const std::string date_string = price_index::helper::year_month_day_to_string(last_record.day);
+
+                    std::vector<price_index::KeyValuePair> key_value_pairs;
+                    key_value_pairs.push_back(price_index::KeyValuePair{"date", date_string});
+                    key_value_pairs.push_back(price_index::KeyValuePair{"id_token_a", static_cast<int64_t>(pool.idTokenA.v)});
+                    key_value_pairs.push_back(price_index::KeyValuePair{"id_token_b", static_cast<int64_t>(pool.idTokenB.v)});
+                    key_value_pairs.push_back(price_index::KeyValuePair{"high", static_cast<double>(last_record.high)});
+                    key_value_pairs.push_back(price_index::KeyValuePair{"low", static_cast<double>(last_record.low)});
+
+                    price_index::Insert insert_statement{"prices", key_value_pairs};
+                    try {
+                        price_index::Storage price_storage{(GetDataDir() / "dex_poolpairs.db").string()};
+                        price_storage.execute_transaction(insert_statement.ToString());
+                    } catch (std::exception e) {
+                        LogPrintf("Insert failed at blockheight %d: %s\n", height, e.what());
+                        LogPrintf("Date: %s; timestamp: %d\n", date_string, time);
+                        LogPrintf("High: %f; low: %f; day: %s\n", last_record.high, last_record.low, date_string);
+                    }
+                }
+            }
+            
+            
         }
         PoolHeightKey poolKey = {poolId, height};
         if (pool.swapEvent) {
@@ -388,6 +450,9 @@ Res CPoolPair::RemoveLiquidity(CAmount liqAmount, std::function<Res(CAmount, CAm
 }
 
 Res CPoolPair::Swap(CTokenAmount in, CAmount dexfeeInPct, PoolPrice const & maxPrice, std::function<Res (const CTokenAmount &, const CTokenAmount &)> onTransfer, int height) {
+    
+    
+    // LogPrintf("Swap called height: %d\n", height);
     if (in.nTokenId != idTokenA && in.nTokenId != idTokenB)
         return Res::Err("Error, input token ID (" + in.nTokenId.ToString() + ") doesn't match pool tokens (" + idTokenA.ToString() + "," + idTokenB.ToString() + ")");
 

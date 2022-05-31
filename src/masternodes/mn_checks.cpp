@@ -1190,7 +1190,7 @@ public:
             }
         }
 
-        return mnview.SetPoolPair(tokenId, height, poolPair);
+        return mnview.SetPoolPair(tokenId, height, poolPair, time);
     }
 
     Res operator()(const CUpdatePoolPairMessage& obj) const {
@@ -1284,7 +1284,7 @@ public:
             return addBalanceSetShares(obj.shareAddress, balance);
         }, slippageProtection);
 
-        return !res ? res : mnview.SetPoolPair(lpTokenID, height, pool);
+        return !res ? res : mnview.SetPoolPair(lpTokenID, height, pool, time);
     }
 
     Res operator()(const CRemoveLiquidityMessage& obj) const {
@@ -1323,7 +1323,7 @@ public:
             return mnview.AddBalances(from, balances);
         });
 
-        return !res ? res : mnview.SetPoolPair(amount.nTokenId, height, pool);
+        return !res ? res : mnview.SetPoolPair(amount.nTokenId, height, pool, time);
     }
 
     Res operator()(const CUtxosToAccountMessage& obj) const {
@@ -4318,7 +4318,9 @@ Res CPoolSwap::ExecuteSwap(CCustomCSView& view, std::vector<DCT_ID> poolIDs, boo
             if (testOnly)
                 return Res::Ok();
 
-            auto res = view.SetPoolPair(currentID, height, *pool);
+            std::uint64_t best_block_time = ChainActive().Tip()->GetBlockTime();
+            // LogPrintf("Best block time: %d; %d\n", best_block_time, ChainActive().Height());
+            auto res = view.SetPoolPair(currentID, height, *pool, best_block_time);
             if (!res) {
                 return res;
             }
