@@ -16,8 +16,10 @@
 #include <uint256.h>
 #include <masternodes/balances.h>
 
-#include <index/price_index/price_database.h>
-#include <index/price_index/daily_accumulator.h>
+#include "defi_db_export/defi_db_export.h"
+
+
+extern std::unique_ptr<defi_export::DefiPriceExport> defi_price_export;
 
 struct ByPairKey {
     DCT_ID idTokenA;
@@ -257,10 +259,6 @@ public:
     struct ByRewardLoanPct  { static constexpr uint8_t prefix() { return 'U'; } };
     struct ByPoolLoanReward { static constexpr uint8_t prefix() { return 'W'; } };
     struct ByTokenDexFeePct { static constexpr uint8_t prefix() { return 'l'; } };
-
-    static bool is_initialized;
-    void init_price_database();
-    static price_index::DayAccumulatorMap accumulators;
 };
 
 struct CLiquidityMessage {

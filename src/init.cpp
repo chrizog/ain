@@ -4,6 +4,7 @@
 // file LICENSE or http://www.opensource.org/licenses/mit-license.php.
 
 
+#include <memory>
 #if defined(HAVE_CONFIG_H)
 #include <config/defi-config.h>
 #endif
@@ -23,7 +24,6 @@
 #include <httpserver.h>
 #include <index/blockfilterindex.h>
 #include <index/txindex.h>
-#include <index/price_index.h>
 #include <interfaces/chain.h>
 #include <key.h>
 #include <key_io.h>
@@ -65,6 +65,7 @@
 #include <validationinterface.h>
 #include <walletinitinterface.h>
 #include <wallet/wallet.h>
+#include <masternodes/poolpairs.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -424,13 +425,17 @@ void SetupServerArgs()
     hidden_args.emplace_back("-sysperms");
 #endif
     gArgs.AddArg("-txindex", strprintf("Maintain a full transaction index, used by the getrawtransaction rpc call (default: %u)", DEFAULT_TXINDEX), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
-    gArgs.AddArg("-priceindex", strprintf("(default: %u)", false), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     gArgs.AddArg("-acindex", strprintf("Maintain a full account history index, tracking all accounts balances changes. Used by the listaccounthistory, getaccounthistory and accounthistorycount rpc calls (default: %u)", DEFAULT_ACINDEX), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     gArgs.AddArg("-vaultindex", strprintf("Maintain a full vault history index, tracking all vault changes. Used by the listvaulthistory rpc call (default: %u)", DEFAULT_VAULTINDEX), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     gArgs.AddArg("-blockfilterindex=<type>",
                  strprintf("Maintain an index of compact filters by block (default: %s, values: %s).", DEFAULT_BLOCKFILTERINDEX, ListBlockFilterTypes()) +
                  " If <type> is not supplied or if <type> = 1, indexes for all known types are enabled.",
                  ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
+
+    gArgs.AddArg("-exportdbhost=<host>", " ", ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
+    gArgs.AddArg("-exportdbuser=<user>", " ", ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
+    gArgs.AddArg("-exportdbpwd=<pwd>", " ", ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
+    gArgs.AddArg("-exportdbname=<name>", " ", ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
 
     gArgs.AddArg("-addnode=<ip>", "Add a node to connect to and attempt to keep the connection open (see the `addnode` RPC command help for more info). This option can be specified multiple times to add multiple nodes.", ArgsManager::ALLOW_ANY | ArgsManager::NETWORK_ONLY, OptionsCategory::CONNECTION);
     gArgs.AddArg("-banscore=<n>", strprintf("Threshold for disconnecting misbehaving peers (default: %u)", DEFAULT_BANSCORE_THRESHOLD), ArgsManager::ALLOW_ANY, OptionsCategory::CONNECTION);
@@ -1389,6 +1394,42 @@ bool AppInitMain(InitInterfaces& interfaces)
                   "also be data loss if defi is started while in a temporary directory.\n",
             gArgs.GetArg("-datadir", ""), fs::current_path().string());
     }
+
+
+    const bool export_db_options_set = gArgs.IsArgSet("-exportdbhost") && 
+      gArgs.IsArgSet("-exportdbuser") &&
+      gArgs.IsArgSet("-exportdbpwd") &&
+      gArgs.IsArgSet("-exportdbname"); 
+
+    if (export_db_options_set) {
+      std::string export_db_host = gArgs.GetArgs("-exportdbhost")[0];
+      std::string export_db_user = gArgs.GetArgs("-exportdbuser")[0];
+      std::string export_db_pwd = gArgs.GetArgs("-exportdbpwd")[0];
+      std::string export_db_name = gArgs.GetArgs("-exportdbname")[0];
+
+      LogPrintf("**********************************\n");
+      LogPrintf("Export DB settings:\n");
+      LogPrintf("Host: %s\n", export_db_host);
+      LogPrintf("User: %s\n", export_db_user);
+      LogPrintf("Password: %s\n", export_db_pwd);
+      LogPrintf("DB Name: %s\n", export_db_name);
+      LogPrintf("**********************************\n");
+
+      defi_export::DefiPriceExport::ConstructionToken token{
+        export_db_host,
+        export_db_user,
+        export_db_pwd,
+        export_db_name
+      };
+
+      defi_price_export = std::make_unique<defi_export::DefiPriceExport>(token);
+    }
+    else {
+      LogPrintf("Export DB settings not set. Request shutdown!\n");
+      StartShutdown();
+    }
+
+
 
     InitSignatureCache();
     InitScriptExecutionCache();

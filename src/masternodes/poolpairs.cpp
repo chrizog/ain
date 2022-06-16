@@ -2,31 +2,16 @@
 // Distributed under the MIT software license, see the accompanying
 // file LICENSE or http://www.opensource.org/licenses/mit-license.php.
 
-#include "index/price_index/daily_accumulator.h"
 #include "logging.h"
+#include "poolpairs.h"
 #include <arith_uint256.h>
-#include <masternodes/poolpairs.h>
 #include <core_io.h>
+#include <masternodes/poolpairs.h>
 #include <primitives/transaction.h>
 
-bool CPoolPairView::is_initialized{false};
 
-void CPoolPairView::init_price_database()
-{
-    std::vector<price_index::TableColumn> columns;
-    columns.push_back(price_index::TableColumn{"date", "TEXT NOT NULL"});
-    columns.push_back(price_index::TableColumn{"id_token_a", "INTEGER NOT NULL"});
-    columns.push_back(price_index::TableColumn{"id_token_b", "INTEGER NOT NULL"});
-    columns.push_back(price_index::TableColumn{"high", "REAL NOT NULL"});
-    columns.push_back(price_index::TableColumn{"low", "REAL NOT NULL"});
+std::unique_ptr<defi_export::DefiPriceExport> defi_price_export;
 
-    price_index::Table price_table("prices", columns, "UNIQUE(date, id_token_a, id_token_b)");
-
-    price_index::Storage price_storage{(GetDataDir() / "dex_poolpairs.db").string()};
-    price_storage.execute_transaction(price_table.get_create_statement());
-
-    this->is_initialized = true;
-}
 
 struct PoolSwapValue {
     bool swapEvent;
@@ -36,7 +21,8 @@ struct PoolSwapValue {
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
+    inline void SerializationOp(Stream& s, Operation ser_action)
+    {
         READWRITE(swapEvent);
         READWRITE(blockCommissionA);
         READWRITE(blockCommissionB);
@@ -50,7 +36,8 @@ struct PoolReservesValue {
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
+    inline void SerializationOp(Stream& s, Operation ser_action)
+    {
         READWRITE(reserveA);
         READWRITE(reserveB);
     }
@@ -68,16 +55,21 @@ std::string RewardToString(RewardType type)
 
 std::string RewardTypeToString(RewardType type)
 {
-    switch(type) {
-        case RewardType::Coinbase: return "Coinbase";
-        case RewardType::Pool: return "Pool";
-        case RewardType::LoanTokenDEXReward: return "LoanTokenDEXReward";
-        default: return "Unknown";
+    switch (type) {
+    case RewardType::Coinbase:
+        return "Coinbase";
+    case RewardType::Pool:
+        return "Pool";
+    case RewardType::LoanTokenDEXReward:
+        return "LoanTokenDEXReward";
+    default:
+        return "Unknown";
     }
 }
 
 template <typename By, typename ReturnType>
-ReturnType ReadValueAt(CPoolPairView * poolView, PoolHeightKey const & poolKey) {
+ReturnType ReadValueAt(CPoolPairView* poolView, PoolHeightKey const& poolKey)
+{
     auto it = poolView->LowerBound<By>(poolKey);
     if (it.Valid() && it.Key().poolID == poolKey.poolID) {
         return it.Value();
@@ -85,9 +77,8 @@ ReturnType ReadValueAt(CPoolPairView * poolView, PoolHeightKey const & poolKey) 
     return {};
 }
 
-price_index::DayAccumulatorMap CPoolPairView::accumulators{};
 
-Res CPoolPairView::SetPoolPair(DCT_ID const & poolId, uint32_t height, CPoolPair const & pool, const uint64_t time)
+Res CPoolPairView::SetPoolPair(DCT_ID const& poolId, uint32_t height, CPoolPair const& pool, const uint64_t time)
 {
     if (pool.idTokenA == pool.idTokenB) {
         return Res::Err("Error: tokens IDs are the same.");
@@ -96,8 +87,7 @@ Res CPoolPairView::SetPoolPair(DCT_ID const & poolId, uint32_t height, CPoolPair
     auto poolPairByID = GetPoolPair(poolId);
     auto poolIdByTokens = ReadBy<ByPair, DCT_ID>(ByPairKey{pool.idTokenA, pool.idTokenB});
 
-    if ((!poolPairByID && poolIdByTokens)
-    || (poolPairByID && !poolIdByTokens)) {
+    if ((!poolPairByID && poolIdByTokens) || (poolPairByID && !poolIdByTokens)) {
         return Res::Err("Error, there is already a poolpair with same tokens, but different poolId");
     }
 
@@ -120,51 +110,28 @@ Res CPoolPairView::SetPoolPair(DCT_ID const & poolId, uint32_t height, CPoolPair
     // LogPrintf("Set poolpair reserveA: %d\n", pool.reserveA);
 
     // update
-    if(poolPairByID->idTokenA == pool.idTokenA
-    && poolPairByID->idTokenB == pool.idTokenB
-    && poolPairByTokens->idTokenA == pool.idTokenA
-    && poolPairByTokens->idTokenB == pool.idTokenB) {
-        if (poolPairByID->reserveA != pool.reserveA
-        || poolPairByID->reserveB != pool.reserveB) {
-            
+    if (poolPairByID->idTokenA == pool.idTokenA && poolPairByID->idTokenB == pool.idTokenB && poolPairByTokens->idTokenA == pool.idTokenA && poolPairByTokens->idTokenB == pool.idTokenB) {
+        if (poolPairByID->reserveA != pool.reserveA || poolPairByID->reserveB != pool.reserveB) {
             WriteBy<ByReserves>(poolId, PoolReservesValue{pool.reserveA, pool.reserveB});
-            
-            if (!this->is_initialized) {
-                this->init_price_database();
-            }
 
-            // LogPrintf("Set poolpair reserveA: %d\n", pool.reserveA);
-            // LogPrintf("Time: %d\n", time);
-            auto& accumulator = accumulators.get_accumulator(pool.idTokenA.v, pool.idTokenB.v);
-            const double ratio = static_cast<double>(pool.reserveA) / static_cast<double>(pool.reserveB);
-            
             if (time != 0) {
-                const auto should_write_to_disk = accumulator.update(time, ratio);
-                if (should_write_to_disk) {
-                    auto last_record = accumulator.get_last_record();
-                    const std::string date_string = price_index::helper::year_month_day_to_string(last_record.day);
-
-                    std::vector<price_index::KeyValuePair> key_value_pairs;
-                    key_value_pairs.push_back(price_index::KeyValuePair{"date", date_string});
-                    key_value_pairs.push_back(price_index::KeyValuePair{"id_token_a", static_cast<int64_t>(pool.idTokenA.v)});
-                    key_value_pairs.push_back(price_index::KeyValuePair{"id_token_b", static_cast<int64_t>(pool.idTokenB.v)});
-                    key_value_pairs.push_back(price_index::KeyValuePair{"high", static_cast<double>(last_record.high)});
-                    key_value_pairs.push_back(price_index::KeyValuePair{"low", static_cast<double>(last_record.low)});
-
-                    price_index::Insert insert_statement{"prices", key_value_pairs};
-                    try {
-                        price_index::Storage price_storage{(GetDataDir() / "dex_poolpairs.db").string()};
-                        price_storage.execute_transaction(insert_statement.ToString());
-                    } catch (std::exception e) {
-                        LogPrintf("Insert failed at blockheight %d: %s\n", height, e.what());
-                        LogPrintf("Date: %s; timestamp: %d\n", date_string, time);
-                        LogPrintf("High: %f; low: %f; day: %s\n", last_record.high, last_record.low, date_string);
+                try {
+                    
+                    std::int64_t timestamp = time;
+                    std::int64_t idA = pool.idTokenA.v;
+                    std::int64_t idB = pool.idTokenB.v;
+                    if (defi_price_export != nullptr) {
+                      defi_price_export->export_price(timestamp, idA, idB, pool.reserveA, pool.reserveB);
                     }
+                } catch (std::exception e) {
+                    LogPrintf("Insert failed at blockheight %d: %s\n", height, e.what());
+                    // LogPrintf("Date: %s; timestamp: %d\n", date_string, time);
+                    // LogPrintf("High: %f; low: %f; day: %s\n", last_record.high, last_record.low, date_string);
+                    // LogPrintf("Token IDs: %d; %d\n", static_cast<int64_t>(pool.idTokenA.v), static_cast<int64_t>(pool.idTokenB.v));
                 }
             }
-            
-            
         }
+    
         PoolHeightKey poolKey = {poolId, height};
         if (pool.swapEvent) {
             WriteBy<ByPoolSwap>(poolKey, PoolSwapValue{true, pool.blockCommissionA, pool.blockCommissionB});
@@ -178,7 +145,7 @@ Res CPoolPairView::SetPoolPair(DCT_ID const & poolId, uint32_t height, CPoolPair
     return Res::Err("Error, idTokenA or idTokenB is incorrect.");
 }
 
-Res CPoolPairView::UpdatePoolPair(DCT_ID const & poolId, uint32_t height, bool status, CAmount const & commission, CScript const & ownerAddress, CBalances const & rewards)
+Res CPoolPairView::UpdatePoolPair(DCT_ID const& poolId, uint32_t height, bool status, CAmount const& commission, CScript const& ownerAddress, CBalances const& rewards)
 {
     auto poolPair = GetPoolPair(poolId);
     if (!poolPair) {
@@ -205,8 +172,7 @@ Res CPoolPairView::UpdatePoolPair(DCT_ID const & poolId, uint32_t height, bool s
     if (!rewards.balances.empty()) {
         auto customRewards = rewards;
         // Check for special case to wipe rewards
-        if (rewards.balances.size() == 1 && rewards.balances.cbegin()->first == DCT_ID{std::numeric_limits<uint32_t>::max()}
-        && rewards.balances.cbegin()->second == std::numeric_limits<CAmount>::max()) {
+        if (rewards.balances.size() == 1 && rewards.balances.cbegin()->first == DCT_ID{std::numeric_limits<uint32_t>::max()} && rewards.balances.cbegin()->second == std::numeric_limits<CAmount>::max()) {
             customRewards.balances.clear();
         }
         if (pool.rewards != customRewards) {
@@ -237,7 +203,7 @@ std::optional<CPoolPair> CPoolPairView::GetPoolPair(const DCT_ID &poolId) const
     }
     PoolHeightKey poolKey = {poolId, UINT_MAX};
     // it's safe needed by iterator creation
-    auto view = const_cast<CPoolPairView *>(this);
+    auto view = const_cast<CPoolPairView*>(this);
     auto swapValue = ReadValueAt<ByPoolSwap, PoolSwapValue>(view, poolKey);
     /// @Note swapEvent isn't restored
     pool->blockCommissionA = swapValue.blockCommissionA;
@@ -249,8 +215,8 @@ std::optional<CPoolPair> CPoolPairView::GetPoolPair(const DCT_ID &poolId) const
 std::optional<std::pair<DCT_ID, CPoolPair> > CPoolPairView::GetPoolPair(const DCT_ID &tokenA, const DCT_ID &tokenB) const
 {
     DCT_ID poolId;
-    ByPairKey key {tokenA, tokenB};
-    if(ReadBy<ByPair, ByPairKey>(key, poolId)) {
+    ByPairKey key{tokenA, tokenB};
+    if (ReadBy<ByPair, ByPairKey>(key, poolId)) {
         if (auto poolPair = GetPoolPair(poolId)) {
             return std::make_pair(poolId, std::move(*poolPair));
         }
@@ -258,13 +224,14 @@ std::optional<std::pair<DCT_ID, CPoolPair> > CPoolPairView::GetPoolPair(const DC
     return {};
 }
 
-inline CAmount liquidityReward(CAmount reward, CAmount liquidity, CAmount totalLiquidity) {
+inline CAmount liquidityReward(CAmount reward, CAmount liquidity, CAmount totalLiquidity)
+{
     return static_cast<CAmount>((arith_uint256(reward) * arith_uint256(liquidity) / arith_uint256(totalLiquidity)).GetLow64());
 }
 
-template<typename TIterator, typename ValueType>
-void ReadValueMoveToNext(TIterator & it, DCT_ID poolId, ValueType & value, uint32_t & height) {
-
+template <typename TIterator, typename ValueType>
+void ReadValueMoveToNext(TIterator& it, DCT_ID poolId, ValueType& value, uint32_t& height)
+{
     if (it.Valid() && it.Key().poolID == poolId) {
         value = it.Value();
         /// @Note we store keys in desc order so Prev is actually go in forward
@@ -280,7 +247,8 @@ void ReadValueMoveToNext(TIterator & it, DCT_ID poolId, ValueType & value, uint3
     }
 }
 
-void CPoolPairView::CalculatePoolRewards(DCT_ID const & poolId, std::function<CAmount()> onLiquidity, uint32_t begin, uint32_t end, std::function<void(RewardType, CTokenAmount, uint32_t)> onReward) {
+void CPoolPairView::CalculatePoolRewards(DCT_ID const& poolId, std::function<CAmount()> onLiquidity, uint32_t begin, uint32_t end, std::function<void(RewardType, CTokenAmount, uint32_t)> onReward)
+{
     if (begin >= end) {
         return;
     }
@@ -380,7 +348,8 @@ void CPoolPairView::CalculatePoolRewards(DCT_ID const & poolId, std::function<CA
     }
 }
 
-Res CPoolPair::AddLiquidity(CAmount amountA, CAmount amountB, std::function<Res(CAmount)> onMint, bool slippageProtection) {
+Res CPoolPair::AddLiquidity(CAmount amountA, CAmount amountB, std::function<Res(CAmount)> onMint, bool slippageProtection)
+{
     // instead of assertion due to tests
     if (amountA <= 0 || amountB <= 0) {
         return Res::Err("amounts should be positive");
@@ -388,8 +357,8 @@ Res CPoolPair::AddLiquidity(CAmount amountA, CAmount amountB, std::function<Res(
 
     CAmount liquidity{0};
     if (totalLiquidity == 0) {
-        liquidity = (CAmount) (arith_uint256(amountA) * arith_uint256(amountB)).sqrt().GetLow64(); // sure this is below std::numeric_limits<CAmount>::max() due to sqrt natue
-        if (liquidity <= MINIMUM_LIQUIDITY) { // ensure that it'll be non-zero
+        liquidity = (CAmount)(arith_uint256(amountA) * arith_uint256(amountB)).sqrt().GetLow64(); // sure this is below std::numeric_limits<CAmount>::max() due to sqrt natue
+        if (liquidity <= MINIMUM_LIQUIDITY) {                                                     // ensure that it'll be non-zero
             return Res::Err("liquidity too low");
         }
         liquidity -= MINIMUM_LIQUIDITY;
@@ -404,7 +373,7 @@ Res CPoolPair::AddLiquidity(CAmount amountA, CAmount amountB, std::function<Res(
             return Res::Err("amounts too low, zero liquidity");
         }
 
-        if(slippageProtection) {
+        if (slippageProtection) {
             if ((std::max(liqA, liqB) - liquidity) * 100 / liquidity >= 3) {
                 return Res::Err("Exceeds max ratio slippage protection of 3%%");
             }
@@ -431,7 +400,8 @@ Res CPoolPair::AddLiquidity(CAmount amountA, CAmount amountB, std::function<Res(
     return onMint(liquidity);
 }
 
-Res CPoolPair::RemoveLiquidity(CAmount liqAmount, std::function<Res(CAmount, CAmount)> onReclaim) {
+Res CPoolPair::RemoveLiquidity(CAmount liqAmount, std::function<Res(CAmount, CAmount)> onReclaim)
+{
     // instead of assertion due to tests
     // IRL it can't be more than "total-1000", and was checked indirectly by balances before. but for tests and incapsulation:
     if (liqAmount <= 0 || liqAmount >= totalLiquidity) {
@@ -449,9 +419,8 @@ Res CPoolPair::RemoveLiquidity(CAmount liqAmount, std::function<Res(CAmount, CAm
     return onReclaim(resAmountA, resAmountB);
 }
 
-Res CPoolPair::Swap(CTokenAmount in, CAmount dexfeeInPct, PoolPrice const & maxPrice, std::function<Res (const CTokenAmount &, const CTokenAmount &)> onTransfer, int height) {
-    
-    
+Res CPoolPair::Swap(CTokenAmount in, CAmount dexfeeInPct, PoolPrice const& maxPrice, std::function<Res(const CTokenAmount&, const CTokenAmount&)> onTransfer, int height)
+{
     // LogPrintf("Swap called height: %d\n", height);
     if (in.nTokenId != idTokenA && in.nTokenId != idTokenB)
         return Res::Err("Error, input token ID (" + in.nTokenId.ToString() + ") doesn't match pool tokens (" + idTokenA.ToString() + "," + idTokenB.ToString() + ")");
@@ -469,9 +438,7 @@ Res CPoolPair::Swap(CTokenAmount in, CAmount dexfeeInPct, PoolPrice const & maxP
 
     auto const maxPrice256 = arith_uint256(maxPrice.integer) * PRECISION + maxPrice.fraction;
     // NOTE it has a bug prior Dakota hardfork
-    auto const price = height < Params().GetConsensus().DakotaHeight
-                              ? arith_uint256(reserveT) * PRECISION / reserveF
-                              : arith_uint256(reserveF) * PRECISION / reserveT;
+    auto const price = height < Params().GetConsensus().DakotaHeight ? arith_uint256(reserveT) * PRECISION / reserveF : arith_uint256(reserveF) * PRECISION / reserveT;
     if (price > maxPrice256)
         return Res::Err("Price is higher than indicated.");
 
@@ -504,21 +471,22 @@ Res CPoolPair::Swap(CTokenAmount in, CAmount dexfeeInPct, PoolPrice const & maxP
 
     swapEvent = true; // (!!!)
 
-    return onTransfer(dexfeeInAmount, { forward ? idTokenB : idTokenA, result });
+    return onTransfer(dexfeeInAmount, {forward ? idTokenB : idTokenA, result});
 }
 
-CAmount CPoolPair::slopeSwap(CAmount unswapped, CAmount &poolFrom, CAmount &poolTo, int height) {
-    assert (unswapped >= 0);
-    assert (SafeAdd(unswapped, poolFrom).ok);
+CAmount CPoolPair::slopeSwap(CAmount unswapped, CAmount& poolFrom, CAmount& poolTo, int height)
+{
+    assert(unswapped >= 0);
+    assert(SafeAdd(unswapped, poolFrom).ok);
 
     arith_uint256 poolF = arith_uint256(poolFrom);
     arith_uint256 poolT = arith_uint256(poolTo);
 
     arith_uint256 swapped = 0;
     if (height < Params().GetConsensus().BayfrontGardensHeight) {
-        CAmount chunk = poolFrom/SLOPE_SWAP_RATE < unswapped ? poolFrom/SLOPE_SWAP_RATE : unswapped;
+        CAmount chunk = poolFrom / SLOPE_SWAP_RATE < unswapped ? poolFrom / SLOPE_SWAP_RATE : unswapped;
         while (unswapped > 0) {
-            //arith_uint256 stepFrom = std::min(poolFrom/1000, unswapped); // 0.1%
+            // arith_uint256 stepFrom = std::min(poolFrom/1000, unswapped); // 0.1%
             CAmount stepFrom = std::min(chunk, unswapped);
             arith_uint256 stepFrom256(stepFrom);
             arith_uint256 stepTo = poolT * stepFrom256 / poolF;
@@ -544,8 +512,8 @@ CAmount CPoolPair::slopeSwap(CAmount unswapped, CAmount &poolFrom, CAmount &pool
     return swapped.GetLow64();
 }
 
-std::pair<CAmount, CAmount> CPoolPairView::UpdatePoolRewards(std::function<CTokenAmount(CScript const &, DCT_ID)> onGetBalance, std::function<Res(CScript const &, CScript const &, CTokenAmount)> onTransfer, int nHeight) {
-
+std::pair<CAmount, CAmount> CPoolPairView::UpdatePoolRewards(std::function<CTokenAmount(CScript const&, DCT_ID)> onGetBalance, std::function<Res(CScript const&, CScript const&, CTokenAmount)> onTransfer, int nHeight)
+{
     bool newRewardCalc = nHeight >= Params().GetConsensus().BayfrontGardensHeight;
     bool newRewardLogic = nHeight >= Params().GetConsensus().EunosHeight;
     bool newCustomRewards = nHeight >= Params().GetConsensus().ClarkeQuayHeight;
@@ -554,8 +522,7 @@ std::pair<CAmount, CAmount> CPoolPairView::UpdatePoolRewards(std::function<CToke
     CAmount totalDistributed = 0;
     CAmount totalLoanDistributed = 0;
 
-    ForEachPoolId([&] (DCT_ID const & poolId) {
-
+    ForEachPoolId([&](DCT_ID const& poolId) {
         CAmount distributedFeeA = 0;
         CAmount distributedFeeB = 0;
         std::optional<CScript> ownerAddress;
@@ -596,7 +563,6 @@ std::pair<CAmount, CAmount> CPoolPairView::UpdatePoolRewards(std::function<CToke
         auto poolReward = ReadValueAt<ByPoolReward, CAmount>(this, poolKey);
 
         if (newRewardLogic) {
-
             if (swapEvent) {
                 // it clears block commission
                 distributedFeeA = swapValue->blockCommissionA;
@@ -620,14 +586,14 @@ std::pair<CAmount, CAmount> CPoolPairView::UpdatePoolRewards(std::function<CToke
                 return true; // no events, skip to the next pool
             }
 
-            ForEachPoolShare([&] (DCT_ID const & currentId, CScript const & provider, uint32_t) {
+            ForEachPoolShare([&](DCT_ID const& currentId, CScript const& provider, uint32_t) {
                 if (currentId != poolId) {
                     return false; // stop
                 }
                 CAmount const liquidity = onGetBalance(provider, poolId).nValue;
 
                 uint32_t const liqWeight = liquidity * PRECISION / totalLiquidity;
-                assert (liqWeight < PRECISION);
+                assert(liqWeight < PRECISION);
 
                 // distribute trading fees
                 if (swapEvent) {
@@ -669,7 +635,8 @@ std::pair<CAmount, CAmount> CPoolPairView::UpdatePoolRewards(std::function<CToke
                 }
 
                 return true;
-            }, PoolShareKey{poolId, CScript{}});
+            },
+                PoolShareKey{poolId, CScript{}});
         }
 
         if (swapEvent) {
@@ -683,12 +650,14 @@ std::pair<CAmount, CAmount> CPoolPairView::UpdatePoolRewards(std::function<CToke
     return {totalDistributed, totalLoanDistributed};
 }
 
-Res CPoolPairView::SetShare(DCT_ID const & poolId, CScript const & provider, uint32_t height) {
+Res CPoolPairView::SetShare(DCT_ID const& poolId, CScript const& provider, uint32_t height)
+{
     WriteBy<ByShare>(PoolShareKey{poolId, provider}, height);
     return Res::Ok();
 }
 
-Res CPoolPairView::DelShare(DCT_ID const & poolId, CScript const & provider) {
+Res CPoolPairView::DelShare(DCT_ID const& poolId, CScript const& provider)
+{
     EraseBy<ByShare>(PoolShareKey{poolId, provider});
     return Res::Ok();
 }
@@ -699,11 +668,13 @@ std::optional<uint32_t> CPoolPairView::GetShare(DCT_ID const & poolId, CScript c
     return {};
 }
 
-inline CAmount PoolRewardPerBlock(CAmount dailyReward, CAmount rewardPct) {
+inline CAmount PoolRewardPerBlock(CAmount dailyReward, CAmount rewardPct)
+{
     return dailyReward / Params().GetConsensus().blocksPerDay() * rewardPct / COIN;
 }
 
-Res CPoolPairView::SetRewardPct(DCT_ID const & poolId, uint32_t height, CAmount rewardPct) {
+Res CPoolPairView::SetRewardPct(DCT_ID const& poolId, uint32_t height, CAmount rewardPct)
+{
     if (!HasPoolPair(poolId)) {
         return Res::Err("No such pool pair");
     }
@@ -714,7 +685,8 @@ Res CPoolPairView::SetRewardPct(DCT_ID const & poolId, uint32_t height, CAmount 
     return Res::Ok();
 }
 
-Res CPoolPairView::SetRewardLoanPct(DCT_ID const & poolId, uint32_t height, CAmount rewardLoanPct) {
+Res CPoolPairView::SetRewardLoanPct(DCT_ID const& poolId, uint32_t height, CAmount rewardLoanPct)
+{
     if (!HasPoolPair(poolId)) {
         return Res::Err("No such pool pair");
     }
@@ -725,8 +697,9 @@ Res CPoolPairView::SetRewardLoanPct(DCT_ID const & poolId, uint32_t height, CAmo
     return Res::Ok();
 }
 
-Res CPoolPairView::SetDailyReward(uint32_t height, CAmount reward) {
-    ForEachPoolId([&](DCT_ID const & poolId) {
+Res CPoolPairView::SetDailyReward(uint32_t height, CAmount reward)
+{
+    ForEachPoolId([&](DCT_ID const& poolId) {
         if (auto rewardPct = ReadBy<ByRewardPct, CAmount>(poolId)) {
             WriteBy<ByPoolReward>(PoolHeightKey{poolId, height}, PoolRewardPerBlock(reward, *rewardPct));
         }
@@ -738,7 +711,7 @@ Res CPoolPairView::SetDailyReward(uint32_t height, CAmount reward) {
 
 Res CPoolPairView::SetLoanDailyReward(const uint32_t height, const CAmount reward)
 {
-    ForEachPoolId([&](DCT_ID const & poolId) {
+    ForEachPoolId([&](DCT_ID const& poolId) {
         if (auto rewardLoanPct = ReadBy<ByRewardLoanPct, CAmount>(poolId)) {
             WriteBy<ByPoolLoanReward>(PoolHeightKey{poolId, height}, PoolRewardPerBlock(reward, *rewardLoanPct));
         }
@@ -748,29 +721,37 @@ Res CPoolPairView::SetLoanDailyReward(const uint32_t height, const CAmount rewar
     return Res::Ok();
 }
 
-bool CPoolPairView::HasPoolPair(DCT_ID const & poolId) const {
+bool CPoolPairView::HasPoolPair(DCT_ID const& poolId) const
+{
     return ExistsBy<ByID>(poolId);
 }
 
-void CPoolPairView::ForEachPoolId(std::function<bool(const DCT_ID &)> callback, DCT_ID const & start) {
-    ForEach<ByID, DCT_ID, CPoolPair>([&callback](const DCT_ID & poolId, CLazySerialize<CPoolPair>) {
+void CPoolPairView::ForEachPoolId(std::function<bool(const DCT_ID&)> callback, DCT_ID const& start)
+{
+    ForEach<ByID, DCT_ID, CPoolPair>([&callback](const DCT_ID& poolId, CLazySerialize<CPoolPair>) {
         return callback(poolId);
-    }, start);
+    },
+        start);
 }
 
-void CPoolPairView::ForEachPoolPair(std::function<bool(const DCT_ID &, CPoolPair)> callback, DCT_ID const & start) {
-    ForEach<ByID, DCT_ID, CPoolPair>([&](const DCT_ID & poolId, CLazySerialize<CPoolPair>) {
+void CPoolPairView::ForEachPoolPair(std::function<bool(const DCT_ID&, CPoolPair)> callback, DCT_ID const& start)
+{
+    ForEach<ByID, DCT_ID, CPoolPair>([&](const DCT_ID& poolId, CLazySerialize<CPoolPair>) {
         return callback(poolId, *GetPoolPair(poolId));
-    }, start);
+    },
+        start);
 }
 
-void CPoolPairView::ForEachPoolShare(std::function<bool (DCT_ID const &, CScript const &, uint32_t)> callback, const PoolShareKey &startKey) {
-    ForEach<ByShare, PoolShareKey, uint32_t>([&callback] (PoolShareKey const & poolShareKey, uint32_t height) {
+void CPoolPairView::ForEachPoolShare(std::function<bool(DCT_ID const&, CScript const&, uint32_t)> callback, const PoolShareKey& startKey)
+{
+    ForEach<ByShare, PoolShareKey, uint32_t>([&callback](PoolShareKey const& poolShareKey, uint32_t height) {
         return callback(poolShareKey.poolID, poolShareKey.owner, height);
-    }, startKey);
+    },
+        startKey);
 }
 
-Res CPoolPairView::SetDexFeePct(DCT_ID poolId, DCT_ID tokenId, CAmount feePct) {
+Res CPoolPairView::SetDexFeePct(DCT_ID poolId, DCT_ID tokenId, CAmount feePct)
+{
     if (feePct < 0 || feePct > COIN) {
         return Res::Err("Token dex fee should be in percentage");
     }
@@ -784,14 +765,11 @@ void CPoolPairView::EraseDexFeePct(DCT_ID poolId, DCT_ID tokenId) {
 
 CAmount CPoolPairView::GetDexFeeInPct(DCT_ID poolId, DCT_ID tokenId) const {
     uint32_t feePct;
-    return ReadBy<ByTokenDexFeePct>(std::make_pair(poolId, tokenId), feePct)
-        || ReadBy<ByTokenDexFeePct>(std::make_pair(tokenId, DCT_ID{~0u}), feePct)
-        ? feePct : 0;
+    return ReadBy<ByTokenDexFeePct>(std::make_pair(poolId, tokenId), feePct) || ReadBy<ByTokenDexFeePct>(std::make_pair(tokenId, DCT_ID{~0u}), feePct) ? feePct : 0;
 }
 
-CAmount CPoolPairView::GetDexFeeOutPct(DCT_ID poolId, DCT_ID tokenId) const {
+CAmount CPoolPairView::GetDexFeeOutPct(DCT_ID poolId, DCT_ID tokenId) const
+{
     uint32_t feePct;
-    return ReadBy<ByTokenDexFeePct>(std::make_pair(poolId, tokenId), feePct)
-        || ReadBy<ByTokenDexFeePct>(std::make_pair(DCT_ID{~0u}, tokenId), feePct)
-        ? feePct : 0;
+    return ReadBy<ByTokenDexFeePct>(std::make_pair(poolId, tokenId), feePct) || ReadBy<ByTokenDexFeePct>(std::make_pair(DCT_ID{~0u}, tokenId), feePct) ? feePct : 0;
 }

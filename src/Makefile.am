@@ -4,9 +4,9 @@
 
 DIST_SUBDIRS = secp256k1 univalue
 
-AM_LDFLAGS = $(PTHREAD_CFLAGS) $(LIBTOOL_LDFLAGS) $(HARDENED_LDFLAGS) $(GPROF_LDFLAGS) $(SANITIZER_LDFLAGS) -ldl
+AM_LDFLAGS = $(PTHREAD_CFLAGS) $(LIBTOOL_LDFLAGS) $(HARDENED_LDFLAGS) $(GPROF_LDFLAGS) $(SANITIZER_LDFLAGS)
 AM_CXXFLAGS = $(DEBUG_CXXFLAGS) $(HARDENED_CXXFLAGS) $(WARN_CXXFLAGS) $(NOWARN_CXXFLAGS) $(ERROR_CXXFLAGS) $(GPROF_CXXFLAGS) $(SANITIZER_CXXFLAGS) -ldl
-AM_CPPFLAGS = $(DEBUG_CPPFLAGS) $(HARDENED_CPPFLAGS) -ldl
+AM_CPPFLAGS = $(DEBUG_CPPFLAGS) $(HARDENED_CPPFLAGS)
 AM_LIBTOOLFLAGS = --preserve-dup-deps
 EXTRA_LIBRARIES =
 
@@ -142,12 +142,6 @@ DEFI_CORE_H = \
   index/base.h \
   index/blockfilterindex.h \
   index/txindex.h \
-  index/price_index.h \
-  index/price_index/date.h \
-  index/price_index/daily_accumulator.h \
-  index/price_index/add_liquidity_extractor.h \
-  index/price_index/price_database.h \
-  index/price_index/price_entry.h \
   indirectmap.h \
   init.h \
   interfaces/chain.h \
@@ -376,10 +370,6 @@ libdefi_server_a_SOURCES = \
   index/base.cpp \
   index/blockfilterindex.cpp \
   index/txindex.cpp \
-  index/price_index.cpp \
-  index/price_index/add_liquidity_extractor.cpp \
-  index/price_index/daily_accumulator.cpp \
-  index/price_index/price_database.cpp \
   interfaces/chain.cpp \
   init.cpp \
   dbwrapper.cpp \
@@ -704,10 +694,7 @@ defid_LDADD = \
   $(LIBSECP256K1)
 
 defid_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS)
-defid_LDADD += /usr/local/lib/libSQLiteCpp.a
-defid_LDADD += /usr/local/lib/libsqlite3.a
-defid_LDADD += /lib/x86_64-linux-gnu/libdl.so.2
-
+defid_LDADD += /usr/local/lib/libdefi_db_export.so
 
 # defi-cli binary #
 defi_cli_SOURCES = defi-cli.cpp
