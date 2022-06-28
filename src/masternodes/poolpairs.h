@@ -5,6 +5,7 @@
 #ifndef DEFI_MASTERNODES_POOLPAIRS_H
 #define DEFI_MASTERNODES_POOLPAIRS_H
 
+#include <atomic>
 #include <flushablestorage.h>
 
 #include <amount.h>
@@ -18,8 +19,10 @@
 
 #include "defi_db_export/defi_db_export.h"
 
+extern std::atomic_bool export_block_reserve;
 
 extern std::unique_ptr<defi_export::DefiPriceExport> defi_price_export;
+extern std::unique_ptr<defi_export::DefiBlockReserveExport> defi_block_reserve_export;
 
 struct ByPairKey {
     DCT_ID idTokenA;

@@ -3,6 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file LICENSE or http://www.opensource.org/licenses/mit-license.php.
 
+#include "masternodes/poolpairs.h"
+#include <defi_db_export/defi_db_export.h>
 #include <validation.h>
 
 #include <arith_uint256.h>
@@ -69,6 +71,8 @@
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/thread.hpp>
 #include <boost/asio.hpp>
+
+std::unique_ptr<defi_export::DefiBlockTimestampExport> defi_block_timestamp_export;
 
 #if defined(NDEBUG)
 # error "Defi cannot be compiled without assertions."
@@ -1895,6 +1899,14 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
     }
     mnview.SetLastHeight(pindex->pprev->nHeight);
 
+    if (defi_block_timestamp_export) {
+        try {
+            defi_block_timestamp_export->remove_blocks(pindex->nHeight);
+        } catch (std::exception e) {
+            LogPrintf("Block reserve export: Remove blocks failed for blockheight %d: %s\n", pindex->nHeight, e.what());
+        }
+    }
+
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
 
@@ -2800,7 +2812,11 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
             }
 
             CHistoryWriters writers{paccountHistoryDB.get(), pburnHistoryDB.get(), pvaultHistoryDB.get()};
+
+            defi_block_reserve_export->discard();
+            export_block_reserve = true;
             const auto res = ApplyCustomTx(accountsView, view, tx, chainparams.GetConsensus(), pindex->nHeight, pindex->GetBlockTime(), i, &writers);
+            export_block_reserve = false;
             if (!res.ok && (res.code & CustomTxErrCodes::Fatal)) {
                 if (pindex->nHeight >= chainparams.GetConsensus().EunosHeight) {
                     return state.Invalid(ValidationInvalidReason::CONSENSUS,
@@ -2818,6 +2834,7 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
                     LogPrintf("applied tx %s: %s\n", block.vtx[i]->GetHash().GetHex(), res.msg);
                 } else {
                     LogPrintf("skipped tx %s: %s\n", block.vtx[i]->GetHash().GetHex(), res.msg);
+                    defi_block_reserve_export->discard();
                 }
             }
 
@@ -2967,6 +2984,16 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
     // account changes are validated
     accountsView.Flush();
 
+    if (defi_block_reserve_export != nullptr) {
+        try {
+            defi_block_reserve_export->process_queue();
+        } catch (std::exception e) {
+            LogPrintf("Block reserve export: Process queue failed at blockheight %d: %s\n", pindex->nHeight, e.what());
+        }
+
+        defi_block_reserve_export->discard();
+    }
+
     if (!WriteUndoDataForBlock(blockundo, state, pindex, chainparams))
         return false;
 
@@ -3089,6 +3116,15 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
 
     int64_t nTime6 = GetTimeMicros(); nTimeCallbacks += nTime6 - nTime5;
     LogPrint(BCLog::BENCH, "    - Callbacks: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime6 - nTime5), nTimeCallbacks * MICRO, nTimeCallbacks * MILLI / nBlocksTotal);
+
+    // Export blockheight and timestamp
+    if (defi_block_timestamp_export) {
+        try {
+            defi_block_timestamp_export->export_block(pindex->nHeight, pindex->GetBlockTime());
+        } catch (std::exception e) {
+            LogPrintf("Block reserve export: Export failed at blockheight %d: %s\n", pindex->nHeight, e.what());
+        }
+    }
 
     return true;
 }

@@ -4,6 +4,7 @@
 // file LICENSE or http://www.opensource.org/licenses/mit-license.php.
 
 
+#include <defi_db_export/defi_db_export.h>
 #include <memory>
 #if defined(HAVE_CONFIG_H)
 #include <config/defi-config.h>
@@ -1415,14 +1416,33 @@ bool AppInitMain(InitInterfaces& interfaces)
       LogPrintf("DB Name: %s\n", export_db_name);
       LogPrintf("**********************************\n");
 
-      defi_export::DefiPriceExport::ConstructionToken token{
+      defi_export::DefiPriceExport::ConstructionToken token_price_export{
         export_db_host,
         export_db_user,
         export_db_pwd,
         export_db_name
       };
 
-      defi_price_export = std::make_unique<defi_export::DefiPriceExport>(token);
+      defi_price_export = std::make_unique<defi_export::DefiPriceExport>(token_price_export);
+
+      defi_export::DefiBlockReserveExport::ConstructionToken token_reserve_export{
+        export_db_host,
+        export_db_user,
+        export_db_pwd,
+        export_db_name
+      };
+
+      defi_block_reserve_export = std::make_unique<defi_export::DefiBlockReserveExport>(token_reserve_export);
+
+      defi_export::DefiBlockTimestampExport::ConstructionToken token_timestamp_export{
+        export_db_host,
+        export_db_user,
+        export_db_pwd,
+        export_db_name
+      };
+
+      defi_block_timestamp_export = std::make_unique<defi_export::DefiBlockTimestampExport>(token_timestamp_export);
+  
     }
     else {
       LogPrintf("Export DB settings not set. Request shutdown!\n");

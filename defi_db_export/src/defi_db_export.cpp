@@ -22,9 +22,132 @@ const std::string stmt_create_prices_table =
     UNIQUE(date, id_token_a, id_token_b) \
   );";
 
-bool DefiPriceExport::export_price(std::int64_t timestamp, std::int64_t idA,
-                                   std::int64_t idB, std::int64_t reserveA,
-                                   std::int64_t reserveB) {
+const std::string stmt_create_block_reserves_table =
+    "CREATE TABLE IF NOT EXISTS block_reserves ( \
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, \
+	  block_height INT UNSIGNED NOT NULL, \
+    id_token_a TINYINT UNSIGNED NOT NULL, \
+    id_token_b TINYINT UNSIGNED NOT NULL, \
+    reserve_a BIGINT UNSIGNED NOT NULL,\
+    reserve_b BIGINT UNSIGNED NOT NULL, \
+    UNIQUE(block_height, id_token_a, id_token_b) \
+    );";
+
+const std::string stmt_create_timestamp_table =
+    "CREATE TABLE IF NOT EXISTS block_timestamps ( \
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, \
+	  block_height INT UNSIGNED NOT NULL, \
+    timestamp BIGINT UNSIGNED NOT NULL,\
+    UNIQUE(block_height, timestamp) \
+    );";
+
+
+void DefiBlockTimestampExport::export_block(std::int64_t block_height, std::int64_t timestamp) {
+  BlockTimestampData block_data;
+  block_data.block_height = block_height;
+  block_data.timestamp = timestamp;
+  insert_data(block_data);
+}
+
+void DefiBlockTimestampExport::remove_blocks(std::int64_t block_height_start_remove) {
+  auto sql_connection = db::connect(token.db_host, token.db_user, token.db_pwd);
+  db::execute_statement(*sql_connection, "USE " + token.db_name);
+  db::execute_statement(*sql_connection, stmt_create_timestamp_table);
+
+  /* Example:
+  DELETE FROM block_timestamps WHERE block_height>=10;
+  */
+  const std::string stmt_delete_blocks = "DELETE FROM block_timestamps WHERE block_height>=" + std::to_string(block_height_start_remove);
+  db::execute_statement(*sql_connection, stmt_delete_blocks);
+}
+
+void DefiBlockTimestampExport::insert_data(const BlockTimestampData &block_data) {
+  auto sql_connection = db::connect(token.db_host, token.db_user, token.db_pwd);
+  db::execute_statement(*sql_connection, "USE " + token.db_name);
+  db::execute_statement(*sql_connection, stmt_create_timestamp_table);
+
+  /* Example:
+  INSERT INTO block_timestamps (block_height, timestamp)  VALUES (1, 2);
+  */
+  const std::string &prep_stmt_str =
+      "INSERT INTO block_timestamps (block_height, timestamp) \
+          VALUES (?, ?);";
+
+  auto prep_stmt = std::unique_ptr<sql::PreparedStatement>(
+      sql_connection->prepareStatement(prep_stmt_str));
+  prep_stmt->setUInt(1, block_data.block_height);
+  prep_stmt->setUInt64(2, block_data.timestamp);
+  prep_stmt->execute();
+}
+
+void DefiBlockReserveExport::enqueue(std::int64_t block_height,
+                                     std::uint8_t idA, std::uint8_t idB,
+                                     std::int64_t reserveA,
+                                     std::int64_t reserveB) {
+  BlockReserveData reserve_data;
+  reserve_data.block_height = block_height;
+  reserve_data.idA = idA;
+  reserve_data.idB = idB;
+  reserve_data.reserveA = reserveA;
+  reserve_data.reserveB = reserveB;
+  data_queue_.emplace_back(reserve_data);
+}
+
+void DefiBlockReserveExport::discard() { data_queue_.clear(); }
+
+void DefiBlockReserveExport::process_queue() {
+  for (auto& sample : data_queue_) {
+    auto &acc = acc_map.get_accumulator(create_map_key(sample.idA, sample.idB));
+    auto should_write_to_disk = acc.update(sample.block_height, sample.reserveA, sample.reserveB);
+
+    if (should_write_to_disk) {
+      auto last_record = acc.get_last_record();
+      BlockReserveData reserve_data;
+      reserve_data.block_height = sample.block_height;
+      reserve_data.idA = sample.idA;
+      reserve_data.idB = sample.idB;
+      reserve_data.reserveA = last_record.reserveA;
+      reserve_data.reserveB = last_record.reserveB;
+      insert_data(reserve_data);
+    }
+  }
+}
+
+void DefiBlockReserveExport::insert_data(
+    const BlockReserveData &block_reserve_data) {
+
+  auto sql_connection = db::connect(token.db_host, token.db_user, token.db_pwd);
+  db::execute_statement(*sql_connection, "USE " + token.db_name);
+  db::execute_statement(*sql_connection, stmt_create_block_reserves_table);
+
+  /* Example:
+  INSERT INTO block_reserves (block_height, id_token_a, id_token_b, reserve_a,
+  reserve_b) \ VALUES (1, 2, 3, 500, 1000);
+  */
+  const std::string &prep_stmt_str =
+      "INSERT INTO block_reserves (block_height, id_token_a, id_token_b, reserve_a, reserve_b) \
+          VALUES (?, ?, ?, ?, ?);";
+
+  auto prep_stmt = std::unique_ptr<sql::PreparedStatement>(
+      sql_connection->prepareStatement(prep_stmt_str));
+  prep_stmt->setUInt(1, block_reserve_data.block_height);
+  prep_stmt->setUInt(2, block_reserve_data.idA);
+  prep_stmt->setUInt(3, block_reserve_data.idB);
+  prep_stmt->setUInt64(4, block_reserve_data.reserveA);
+  prep_stmt->setUInt64(5, block_reserve_data.reserveB);
+  prep_stmt->execute();
+}
+
+std::string DefiBlockReserveExport::create_map_key(const std::uint8_t idA,
+                                                   std::uint8_t idB) const {
+  std::string key = std::to_string(idA) + "-" + std::to_string(idB);
+  return key;
+}
+
+bool DefiPriceExport::export_daily_price(std::int64_t timestamp,
+                                         std::int64_t idA, std::int64_t idB,
+                                         std::int64_t reserveA,
+                                         std::int64_t reserveB) {
 
   auto &acc = acc_map.get_accumulator(create_map_key(idA, idB));
 
@@ -45,7 +168,6 @@ bool DefiPriceExport::export_price(std::int64_t timestamp, std::int64_t idA,
     price_data.low = last_record.low;
 
     insert_data(price_data);
-
   }
   return true;
 }

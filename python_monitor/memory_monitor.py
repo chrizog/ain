@@ -5,7 +5,7 @@ import sys
 from csv import writer
 from datetime import datetime
 
-interval = 60 * 5
+interval = 60 * 1
 
 def append_list_as_row(file_name, list_of_elem):
   with open(file_name, 'a+', newline='') as csv_file:

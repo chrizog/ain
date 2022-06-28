@@ -1,8 +1,9 @@
 import psutil
 import time
 import os
+import sys
 
-interval = 60 * 10
+interval = 60
 
 def start_defichain_node(script_path: str):
   os.system(script_path)
@@ -24,11 +25,10 @@ if __name__ == "__main__":
   pid_file = os.path.join(defichain_data_dir, "defid.pid")
 
   while True:
-    time.sleep(interval)
     active = is_running(pid_file)
     if not active:
       print("Restart node..")
       start_defichain_node(defichain_start_script)
-      time.sleep(10)
     else:
       print("Node is running..")
+    time.sleep(interval)

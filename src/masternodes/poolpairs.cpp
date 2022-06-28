@@ -6,12 +6,13 @@
 #include "poolpairs.h"
 #include <arith_uint256.h>
 #include <core_io.h>
+#include <defi_db_export/defi_db_export.h>
 #include <masternodes/poolpairs.h>
 #include <primitives/transaction.h>
 
-
+std::atomic_bool export_block_reserve{false};
 std::unique_ptr<defi_export::DefiPriceExport> defi_price_export;
-
+std::unique_ptr<defi_export::DefiBlockReserveExport> defi_block_reserve_export;
 
 struct PoolSwapValue {
     bool swapEvent;
@@ -115,13 +116,12 @@ Res CPoolPairView::SetPoolPair(DCT_ID const& poolId, uint32_t height, CPoolPair 
             WriteBy<ByReserves>(poolId, PoolReservesValue{pool.reserveA, pool.reserveB});
 
             if (time != 0) {
-                try {
-                    
+                try {  
                     std::int64_t timestamp = time;
                     std::int64_t idA = pool.idTokenA.v;
                     std::int64_t idB = pool.idTokenB.v;
                     if (defi_price_export != nullptr) {
-                      defi_price_export->export_price(timestamp, idA, idB, pool.reserveA, pool.reserveB);
+                      defi_price_export->export_daily_price(timestamp, idA, idB, pool.reserveA, pool.reserveB);
                     }
                 } catch (std::exception e) {
                     LogPrintf("Insert failed at blockheight %d: %s\n", height, e.what());
@@ -129,6 +129,16 @@ Res CPoolPairView::SetPoolPair(DCT_ID const& poolId, uint32_t height, CPoolPair 
                     // LogPrintf("High: %f; low: %f; day: %s\n", last_record.high, last_record.low, date_string);
                     // LogPrintf("Token IDs: %d; %d\n", static_cast<int64_t>(pool.idTokenA.v), static_cast<int64_t>(pool.idTokenB.v));
                 }
+            }
+
+            if (time != 0) {
+              if (export_block_reserve) {
+                    if (defi_block_reserve_export != nullptr) {
+                      std::uint8_t idA = static_cast<std::uint8_t>(pool.idTokenA.v);
+                      std::uint8_t idB = static_cast<std::uint8_t>(pool.idTokenB.v);
+                      defi_block_reserve_export->enqueue(height, idA, idB, pool.reserveA, pool.reserveB);
+                    }
+              }
             }
         }
     
