@@ -5,7 +5,7 @@ import sys
 from csv import writer
 from datetime import datetime
 
-interval = 60 * 1
+interval = 60 * 2
 
 def append_list_as_row(file_name, list_of_elem):
   with open(file_name, 'a+', newline='') as csv_file:
@@ -36,10 +36,11 @@ if __name__ == "__main__":
       kb = rss / 1024
       mb = int(kb / 1024)
       current_time = datetime.now()
-      print(f"{current_time}: {mb} MB")
+      # print(f"{current_time}: {mb} MB")
       output_file = os.path.join(defichain_data_dir, f"memory_{pid}.csv")
       append_list_as_row(output_file, [current_time, mb])
     else:
-      print("PID not found..")
+      pass
+      # print("PID not found..")
 
     time.sleep(interval)

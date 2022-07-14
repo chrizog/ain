@@ -57,11 +57,6 @@ struct LockPoints;
 
 using CreationTxs = std::map<uint32_t, std::pair<uint256, std::vector<std::pair<DCT_ID, uint256>>>>;
 
-namespace defi_export {
-  class DefiBlockTimestampExport;
-}
-extern std::unique_ptr<defi_export::DefiBlockTimestampExport> defi_block_timestamp_export;
-
 /** Default for -minrelaytxfee, minimum relay fee for transactions */
 static const unsigned int DEFAULT_MIN_RELAY_TX_FEE = 1000;
 /** Default for -limitancestorcount, max number of in-mempool ancestors */

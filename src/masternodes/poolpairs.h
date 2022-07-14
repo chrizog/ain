@@ -17,12 +17,13 @@
 #include <uint256.h>
 #include <masternodes/balances.h>
 
-#include "defi_db_export/defi_db_export.h"
-
 extern std::atomic_bool export_block_reserve;
 
-extern std::unique_ptr<defi_export::DefiPriceExport> defi_price_export;
-extern std::unique_ptr<defi_export::DefiBlockReserveExport> defi_block_reserve_export;
+namespace defi_export {
+  class BlockReserveExport;
+}
+
+extern std::unique_ptr<defi_export::BlockReserveExport> defi_block_reserve_export;
 
 struct ByPairKey {
     DCT_ID idTokenA;

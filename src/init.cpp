@@ -1416,39 +1416,20 @@ bool AppInitMain(InitInterfaces& interfaces)
       LogPrintf("DB Name: %s\n", export_db_name);
       LogPrintf("**********************************\n");
 
-      defi_export::DefiPriceExport::ConstructionToken token_price_export{
+      defi_export::ConstructionToken construction_token {
         export_db_host,
         export_db_user,
         export_db_pwd,
         export_db_name
       };
 
-      defi_price_export = std::make_unique<defi_export::DefiPriceExport>(token_price_export);
-
-      defi_export::DefiBlockReserveExport::ConstructionToken token_reserve_export{
-        export_db_host,
-        export_db_user,
-        export_db_pwd,
-        export_db_name
-      };
-
-      defi_block_reserve_export = std::make_unique<defi_export::DefiBlockReserveExport>(token_reserve_export);
-
-      defi_export::DefiBlockTimestampExport::ConstructionToken token_timestamp_export{
-        export_db_host,
-        export_db_user,
-        export_db_pwd,
-        export_db_name
-      };
-
-      defi_block_timestamp_export = std::make_unique<defi_export::DefiBlockTimestampExport>(token_timestamp_export);
+      defi_block_reserve_export = std::make_unique<defi_export::BlockReserveExport>(construction_token, 1000, "block_reserves");
   
     }
     else {
       LogPrintf("Export DB settings not set. Request shutdown!\n");
       StartShutdown();
     }
-
 
 
     InitSignatureCache();

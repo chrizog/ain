@@ -14,8 +14,7 @@ add_library(${LIBRARY_NAME} SHARED
   src/mysql_db.cpp
   src/defi_db_export.cpp
   src/export_utils.cpp
-  src/daily_accumulator.cpp
-  src/block_accumulator.cpp
+  src/block_state.cpp
 )
 target_include_directories(${LIBRARY_NAME} PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src/)
@@ -28,22 +27,28 @@ target_include_directories(${LIBRARY_NAME} PUBLIC
 target_link_libraries(${LIBRARY_NAME} PUBLIC
   mysqlcppconn)
 
-set_target_properties(${LIBRARY_NAME} PROPERTIES PUBLIC_HEADER
-  "${HEADER_DIR}/date.h;${HEADER_DIR}/export_utils.h;${HEADER_DIR}/mysql_db.h;${HEADER_DIR}/daily_accumulator.h;${HEADER_DIR}/defi_db_export.h;${HEADER_DIR}/block_accumulator.h")
+set(HEADER_FILES "${HEADER_DIR}/date.h"
+  "${HEADER_DIR}/export_utils.h"
+  "${HEADER_DIR}/mysql_db.h"
+  "${HEADER_DIR}/defi_db_export.h"
+  "${HEADER_DIR}/block_state.h")
+
+install(FILES ${HEADER_FILES} DESTINATION include/${LIBRARY_NAME})
 install(TARGETS ${LIBRARY_NAME}
-  LIBRARY DESTINATION lib
-  PUBLIC_HEADER DESTINATION include/${LIBRARY_NAME})
+  LIBRARY DESTINATION lib)
 
-add_executable(defi_export_test
-  test/defi_db_export.cpp)
+set(TEST_TARGET defi_export_test)
+add_executable(${TEST_TARGET}
+  test/defi_db_export.cpp
+  test/block_state.cpp)
 
-target_link_libraries(defi_export_test PRIVATE
+target_link_libraries(${TEST_TARGET} PRIVATE
   gtest
   gtest_main
   pthread
   ${LIBRARY_NAME})
 
-add_test(NAME DefiExportTest COMMAND defi_export_test)
+add_test(NAME DefiExportTest COMMAND ${TEST_TARGET})
 enable_testing()
 
 # patch defid: defid$(EXEEXT): $(defid_OBJECTS) $(defid_DEPENDENCIES) $(EXTRA_defid_DEPENDENCIES) 

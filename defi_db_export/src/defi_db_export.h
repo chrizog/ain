@@ -1,56 +1,47 @@
 #ifndef DEFI_EXPORT_H
 #define DEFI_EXPORT_H
 
-#include "block_accumulator.h"
-#include "daily_accumulator.h"
+#include "block_state.h"
+
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <map>
 
 namespace defi_export {
 
-class DefiBlockTimestampExport {
-public:
-  struct ConstructionToken {
-    std::string db_host;
-    std::string db_user;
-    std::string db_pwd;
-    std::string db_name;
-  };
-
-  DefiBlockTimestampExport(const ConstructionToken token) : token(token){};
-  void export_block(std::int64_t block_height, std::int64_t timestamp);
-  void remove_blocks(std::int64_t block_height_start_remove);
-
-private:
-  struct BlockTimestampData {
-    std::int64_t block_height;
-    std::uint64_t timestamp;
-  };
-
-  void insert_data(const BlockTimestampData &block_data);
-
-  ConstructionToken token;
+struct ConstructionToken {
+  std::string db_host;
+  std::string db_user;
+  std::string db_pwd;
+  std::string db_name;
 };
 
-class DefiBlockReserveExport {
+class BlockReserveExport {
 
 public:
-  struct ConstructionToken {
-    std::string db_host;
-    std::string db_user;
-    std::string db_pwd;
-    std::string db_name;
-  };
-
-  DefiBlockReserveExport(const ConstructionToken token) : token(token){};
+  BlockReserveExport(const ConstructionToken token,
+                         const unsigned int cache_size,
+                         const std::string& table_name);
+  
+  ~BlockReserveExport() {};
 
   void discard();
-  void enqueue(std::int64_t block_height, std::uint8_t idA, std::uint8_t idB,
-                    std::int64_t reserveA, std::int64_t reserveB);
+
+  void enqueue(const std::int64_t block_height, const std::uint8_t idA, const std::uint8_t idB,
+               const std::int64_t reserveA, const std::int64_t reserveB);
+
   void process_queue();
 
+  void remove_blocks(const std::int64_t block_height_start_remove);
+
+  void set_cache_size(const unsigned int cache_size);
+
 private:
+  const std::string table_name_;
+  std::string stmt_create_block_reserves_table_;
+
+
   struct BlockReserveData {
     std::int64_t block_height;
     std::uint8_t idA;
@@ -61,45 +52,16 @@ private:
 
   std::vector<BlockReserveData> data_queue_;
 
-  void insert_data(const BlockReserveData &reserve_data);
+  void insert_data(const std::vector<BlockReserveData> &reserve_data);
   std::string create_map_key(const std::uint8_t idA, std::uint8_t idB) const;
 
   ConstructionToken token;
-  AccumulatorMap<BlockAccumulator> acc_map;
+  std::map<std::string, BlockState> block_state_map_;
+
+  unsigned int cache_size_;
+  std::vector<BlockReserveData> cache_;
 };
 
-
-class DefiPriceExport {
-
-public:
-  struct ConstructionToken {
-    std::string db_host;
-    std::string db_user;
-    std::string db_pwd;
-    std::string db_name;
-  };
-
-  DefiPriceExport(const ConstructionToken token) : token(token){};
-
-  bool export_daily_price(std::int64_t timestamp, std::int64_t idA, std::int64_t idB,
-                    std::int64_t reserveA, std::int64_t reserveB);
-
-private:
-  struct PriceData {
-    std::string date_str;
-    std::int64_t idA;
-    std::int64_t idB;
-    float high;
-    float low;
-  };
-
-  void insert_data(const PriceData &price_data);
-  std::string create_map_key(const std::int64_t idA, std::int64_t idB) const;
-
-  ConstructionToken token;
-  AccumulatorMap<DayAccumulator> acc_map;
-
-};
 
 } // namespace defi_export
 

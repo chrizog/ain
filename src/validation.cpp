@@ -72,8 +72,6 @@
 #include <boost/thread.hpp>
 #include <boost/asio.hpp>
 
-std::unique_ptr<defi_export::DefiBlockTimestampExport> defi_block_timestamp_export;
-
 #if defined(NDEBUG)
 # error "Defi cannot be compiled without assertions."
 #endif
@@ -1899,14 +1897,6 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
     }
     mnview.SetLastHeight(pindex->pprev->nHeight);
 
-    if (defi_block_timestamp_export) {
-        try {
-            defi_block_timestamp_export->remove_blocks(pindex->nHeight);
-        } catch (std::exception e) {
-            LogPrintf("Block reserve export: Remove blocks failed for blockheight %d: %s\n", pindex->nHeight, e.what());
-        }
-    }
-
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
 
@@ -2814,7 +2804,13 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
             CHistoryWriters writers{paccountHistoryDB.get(), pburnHistoryDB.get(), pvaultHistoryDB.get()};
 
             defi_block_reserve_export->discard();
-            export_block_reserve = true;
+            if (pindex->nHeight > 1960000) {
+              export_block_reserve = true;
+            }
+            else {
+              export_block_reserve = true;
+            }
+            
             const auto res = ApplyCustomTx(accountsView, view, tx, chainparams.GetConsensus(), pindex->nHeight, pindex->GetBlockTime(), i, &writers);
             export_block_reserve = false;
             if (!res.ok && (res.code & CustomTxErrCodes::Fatal)) {
@@ -3116,15 +3112,20 @@ bool CChainState::ConnectBlock(const CBlock& block, CValidationState& state, CBl
 
     int64_t nTime6 = GetTimeMicros(); nTimeCallbacks += nTime6 - nTime5;
     LogPrint(BCLog::BENCH, "    - Callbacks: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime6 - nTime5), nTimeCallbacks * MICRO, nTimeCallbacks * MILLI / nBlocksTotal);
-
+    /*
     // Export blockheight and timestamp
     if (defi_block_timestamp_export) {
         try {
             defi_block_timestamp_export->export_block(pindex->nHeight, pindex->GetBlockTime());
+
+            if (pindex->nHeight > 2000000) {
+              defi_block_timestamp_export->set_cache_size(1);
+            }
         } catch (std::exception e) {
             LogPrintf("Block reserve export: Export failed at blockheight %d: %s\n", pindex->nHeight, e.what());
         }
     }
+    */
 
     return true;
 }

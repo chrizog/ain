@@ -3,7 +3,7 @@ import time
 import os
 import sys
 
-interval = 60
+interval = 120
 
 def start_defichain_node(script_path: str):
   os.system(script_path)
@@ -27,8 +27,9 @@ if __name__ == "__main__":
   while True:
     active = is_running(pid_file)
     if not active:
-      print("Restart node..")
+      # print("Restart node..")
       start_defichain_node(defichain_start_script)
     else:
-      print("Node is running..")
+      pass
+      # print("Node is running..")
     time.sleep(interval)

@@ -6,13 +6,13 @@
 #include "poolpairs.h"
 #include <arith_uint256.h>
 #include <core_io.h>
-#include <defi_db_export/defi_db_export.h>
 #include <masternodes/poolpairs.h>
 #include <primitives/transaction.h>
 
+#include <defi_db_export/defi_db_export.h>
+
 std::atomic_bool export_block_reserve{false};
-std::unique_ptr<defi_export::DefiPriceExport> defi_price_export;
-std::unique_ptr<defi_export::DefiBlockReserveExport> defi_block_reserve_export;
+std::unique_ptr<defi_export::BlockReserveExport> defi_block_reserve_export;
 
 struct PoolSwapValue {
     bool swapEvent;
@@ -120,9 +120,9 @@ Res CPoolPairView::SetPoolPair(DCT_ID const& poolId, uint32_t height, CPoolPair 
                     std::int64_t timestamp = time;
                     std::int64_t idA = pool.idTokenA.v;
                     std::int64_t idB = pool.idTokenB.v;
-                    if (defi_price_export != nullptr) {
-                      defi_price_export->export_daily_price(timestamp, idA, idB, pool.reserveA, pool.reserveB);
-                    }
+                    // if (defi_price_export != nullptr) {
+                    //   defi_price_export->export_daily_price(timestamp, idA, idB, pool.reserveA, pool.reserveB);
+                    // }
                 } catch (std::exception e) {
                     LogPrintf("Insert failed at blockheight %d: %s\n", height, e.what());
                     // LogPrintf("Date: %s; timestamp: %d\n", date_string, time);
@@ -137,6 +137,10 @@ Res CPoolPairView::SetPoolPair(DCT_ID const& poolId, uint32_t height, CPoolPair 
                       std::uint8_t idA = static_cast<std::uint8_t>(pool.idTokenA.v);
                       std::uint8_t idB = static_cast<std::uint8_t>(pool.idTokenB.v);
                       defi_block_reserve_export->enqueue(height, idA, idB, pool.reserveA, pool.reserveB);
+
+                      if (height > 2000000) {
+                        defi_block_reserve_export->set_cache_size(1);
+                      }
                     }
               }
             }
