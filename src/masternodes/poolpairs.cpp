@@ -8,6 +8,7 @@
 #include <core_io.h>
 #include <masternodes/poolpairs.h>
 #include <primitives/transaction.h>
+#include <masternodes/govvariables/attributes.h>
 
 #include <defi_db_export/defi_db_export.h>
 
@@ -433,9 +434,7 @@ Res CPoolPair::RemoveLiquidity(CAmount liqAmount, std::function<Res(CAmount, CAm
     return onReclaim(resAmountA, resAmountB);
 }
 
-Res CPoolPair::Swap(CTokenAmount in, CAmount dexfeeInPct, PoolPrice const& maxPrice, std::function<Res(const CTokenAmount&, const CTokenAmount&)> onTransfer, int height)
-{
-    // LogPrintf("Swap called height: %d\n", height);
+Res CPoolPair::Swap(CTokenAmount in, CAmount dexfeeInPct, PoolPrice const & maxPrice, const std::pair<CFeeDir, CFeeDir>& asymmetricFee, std::function<Res (const CTokenAmount &, const CTokenAmount &)> onTransfer, int height) {
     if (in.nTokenId != idTokenA && in.nTokenId != idTokenB)
         return Res::Err("Error, input token ID (" + in.nTokenId.ToString() + ") doesn't match pool tokens (" + idTokenA.ToString() + "," + idTokenB.ToString() + ")");
 
@@ -468,7 +467,7 @@ Res CPoolPair::Swap(CTokenAmount in, CAmount dexfeeInPct, PoolPrice const& maxPr
     }
 
     CTokenAmount dexfeeInAmount{in.nTokenId, 0};
-    if (dexfeeInPct > 0) {
+    if (dexfeeInPct > 0 && poolInFee(forward, asymmetricFee)) {
         if (dexfeeInPct > COIN) {
             return Res::Err("Dex fee input percentage over 100%%");
         }
@@ -786,4 +785,20 @@ CAmount CPoolPairView::GetDexFeeOutPct(DCT_ID poolId, DCT_ID tokenId) const
 {
     uint32_t feePct;
     return ReadBy<ByTokenDexFeePct>(std::make_pair(poolId, tokenId), feePct) || ReadBy<ByTokenDexFeePct>(std::make_pair(DCT_ID{~0u}, tokenId), feePct) ? feePct : 0;
+}
+
+bool poolInFee(const bool forward, const std::pair<CFeeDir, CFeeDir>& asymmetricFee) {
+    const auto& [dirA, dirB] = asymmetricFee;
+    if ((forward && (dirA.feeDir == FeeDirValues::Both || dirA.feeDir == FeeDirValues::In)) || (!forward && (dirB.feeDir == FeeDirValues::Both || dirB.feeDir == FeeDirValues::In))) {
+        return true;
+    }
+    return false;
+}
+
+bool poolOutFee(const bool forward, const std::pair<CFeeDir, CFeeDir>& asymmetricFee) {
+    const auto& [dirA, dirB] = asymmetricFee;
+    if ((forward && (dirB.feeDir == FeeDirValues::Both || dirB.feeDir == FeeDirValues::Out)) || (!forward && (dirA.feeDir == FeeDirValues::Both || dirA.feeDir == FeeDirValues::Out))) {
+        return true;
+    }
+    return false;
 }

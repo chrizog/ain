@@ -41,8 +41,6 @@ enum class CustomTxType : uint8_t
     CreateMasternode      = 'C',
     ResignMasternode      = 'R',
     UpdateMasternode      = 'm',
-    SetForcedRewardAddress = 'F',
-    RemForcedRewardAddress = 'f',
     // custom tokens:
     CreateToken           = 'T',
     MintToken             = 'M',
@@ -65,7 +63,7 @@ enum class CustomTxType : uint8_t
     AccountToAccount      = 'B',
     AnyAccountsToAccounts = 'a',
     SmartContract         = 'K',
-    DFIP2203              = 'Q',
+    FutureSwap            = 'Q',
     //set governance variable
     SetGovVariable        = 'G',
     SetGovVariableHeight  = 'j',
@@ -103,6 +101,13 @@ enum class CustomTxType : uint8_t
     // Marker TXs
     FutureSwapExecution    = 'q',
     FutureSwapRefund       = 'w',
+    TokenSplit             = 'P',
+};
+
+enum class MetadataVersion : uint8_t {
+    None = 0,
+    One = 1,
+    Two = 2,
 };
 
 inline CustomTxType CustomTxCodeToType(uint8_t ch) {
@@ -110,8 +115,6 @@ inline CustomTxType CustomTxCodeToType(uint8_t ch) {
     switch(type) {
         case CustomTxType::CreateMasternode:
         case CustomTxType::ResignMasternode:
-        case CustomTxType::SetForcedRewardAddress:
-        case CustomTxType::RemForcedRewardAddress:
         case CustomTxType::UpdateMasternode:
         case CustomTxType::CreateToken:
         case CustomTxType::MintToken:
@@ -128,7 +131,7 @@ inline CustomTxType CustomTxCodeToType(uint8_t ch) {
         case CustomTxType::AccountToAccount:
         case CustomTxType::AnyAccountsToAccounts:
         case CustomTxType::SmartContract:
-        case CustomTxType::DFIP2203:
+        case CustomTxType::FutureSwap:
         case CustomTxType::SetGovVariable:
         case CustomTxType::SetGovVariableHeight:
         case CustomTxType::AutoAuthPrep:
@@ -160,6 +163,7 @@ inline CustomTxType CustomTxCodeToType(uint8_t ch) {
         case CustomTxType::AuctionBid:
         case CustomTxType::FutureSwapExecution:
         case CustomTxType::FutureSwapRefund:
+        case CustomTxType::TokenSplit:
         case CustomTxType::Reject:
         case CustomTxType::None:
             return type;
@@ -217,45 +221,15 @@ struct CResignMasterNodeMessage : public uint256 {
     }
 };
 
-struct CSetForcedRewardAddressMessage {
-    uint256 nodeId;
-    char rewardAddressType;
-    CKeyID rewardAddress;
-
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
-    {
-        READWRITE(nodeId);
-        READWRITE(rewardAddressType);
-        READWRITE(rewardAddress);
-    }
-};
-
-struct CRemForcedRewardAddressMessage {
-    uint256 nodeId;
-
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
-    {
-        READWRITE(nodeId);
-    }
-};
-
 struct CUpdateMasterNodeMessage {
     uint256 mnId;
-    char operatorType;
-    CKeyID operatorAuthAddress;
+    std::vector<std::pair<uint8_t, std::pair<char, std::vector<unsigned char>>>> updates;
 
     ADD_SERIALIZE_METHODS;
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(mnId);
-        READWRITE(operatorType);
-        READWRITE(operatorAuthAddress);
+        READWRITE(updates);
     }
 };
 
@@ -332,8 +306,6 @@ using CCustomTxMessage = std::variant<
     CCustomTxMessageNone,
     CCreateMasterNodeMessage,
     CResignMasterNodeMessage,
-    CSetForcedRewardAddressMessage,
-    CRemForcedRewardAddressMessage,
     CUpdateMasterNodeMessage,
     CCreateTokenMessage,
     CUpdateTokenPreAMKMessage,
@@ -381,18 +353,17 @@ using CCustomTxMessage = std::variant<
     CAuctionBidMessage
 >;
 
-CCustomTxMessage customTypeToMessage(CustomTxType txType);
+CCustomTxMessage customTypeToMessage(CustomTxType txType, uint8_t version);
 bool IsMempooledCustomTxCreate(const CTxMemPool& pool, const uint256& txid);
 Res RpcInfo(const CTransaction& tx, uint32_t height, CustomTxType& type, UniValue& results);
 Res CustomMetadataParse(uint32_t height, const Consensus::Params& consensus, const std::vector<unsigned char>& metadata, CCustomTxMessage& txMessage);
-Res ApplyCustomTx(CCustomCSView& mnview, const CCoinsViewCache& coins, const CTransaction& tx, const Consensus::Params& consensus, uint32_t height, uint64_t time = 0, uint32_t txn = 0, CHistoryWriters* writers = nullptr);
-Res RevertCustomTx(CCustomCSView& mnview, const CCoinsViewCache& coins, const CTransaction& tx, const Consensus::Params& consensus, uint32_t height,  uint32_t txn, CHistoryErasers& erasers);
+Res ApplyCustomTx(CCustomCSView& mnview, const CCoinsViewCache& coins, const CTransaction& tx, const Consensus::Params& consensus, uint32_t height, uint64_t time = 0, uint256* canSpend = nullptr, uint32_t* customTxExpiration = nullptr, uint32_t txn = 0, CHistoryWriters* writers = nullptr);
 Res CustomTxVisit(CCustomCSView& mnview, const CCoinsViewCache& coins, const CTransaction& tx, uint32_t height, const Consensus::Params& consensus, const CCustomTxMessage& txMessage, uint64_t time, uint32_t txn = 0);
 ResVal<uint256> ApplyAnchorRewardTx(CCustomCSView& mnview, const CTransaction& tx, int height, const uint256& prevStakeModifier, const std::vector<unsigned char>& metadata, const Consensus::Params& consensusParams);
 ResVal<uint256> ApplyAnchorRewardTxPlus(CCustomCSView& mnview, const CTransaction& tx, int height, const std::vector<unsigned char>& metadata, const Consensus::Params& consensusParams);
 ResVal<CAmount> GetAggregatePrice(CCustomCSView& view, const std::string& token, const std::string& currency, uint64_t lastBlockTime);
 bool IsVaultPriceValid(CCustomCSView& mnview, const CVaultId& vaultId, uint32_t height);
-Res SwapToDFIOverUSD(CCustomCSView & mnview, DCT_ID tokenId, CAmount amount, CScript const & from, CScript const & to, uint32_t height);
+Res SwapToDFIorDUSD(CCustomCSView & mnview, DCT_ID tokenId, CAmount amount, CScript const & from, CScript const & to, uint32_t height, bool forceLoanSwap = false);
 Res storeGovVars(const CGovernanceHeightMessage& obj, CCustomCSView& view);
 
 inline bool OraclePriceFeed(CCustomCSView& view, const CTokenCurrencyPair& priceFeed) {
@@ -410,7 +381,8 @@ inline bool OraclePriceFeed(CCustomCSView& view, const CTokenCurrencyPair& price
 /*
  * Checks if given tx is probably one of 'CustomTx', returns tx type and serialized metadata in 'data'
 */
-inline CustomTxType GuessCustomTxType(CTransaction const & tx, std::vector<unsigned char> & metadata, bool metadataValidation = false){
+inline CustomTxType GuessCustomTxType(CTransaction const & tx, std::vector<unsigned char> & metadata, bool metadataValidation = false,
+                               uint32_t height = 0, CExpirationAndVersion* customTxParams = nullptr){
     if (tx.vout.empty()) {
         return CustomTxType::None;
     }
@@ -419,21 +391,25 @@ inline CustomTxType GuessCustomTxType(CTransaction const & tx, std::vector<unsig
     if (metadataValidation) {
         for (size_t i{1}; i < tx.vout.size(); ++i) {
             std::vector<unsigned char> dummydata;
-            bool dummyOpcodes{false};
+            uint8_t dummyOpcodes{HasForks::None};
             if (ParseScriptByMarker(tx.vout[i].scriptPubKey, DfTxMarker, dummydata, dummyOpcodes)) {
                 return CustomTxType::Reject;
             }
         }
     }
 
-    bool hasAdditionalOpcodes{false};
-    if (!ParseScriptByMarker(tx.vout[0].scriptPubKey, DfTxMarker, metadata, hasAdditionalOpcodes)) {
+    uint8_t hasAdditionalOpcodes{HasForks::None};
+    if (!ParseScriptByMarker(tx.vout[0].scriptPubKey, DfTxMarker, metadata, hasAdditionalOpcodes, customTxParams)) {
         return CustomTxType::None;
     }
 
     // If metadata contains additional opcodes mark as Reject.
-    if (metadataValidation && hasAdditionalOpcodes) {
-        return CustomTxType::Reject;
+    if (metadataValidation) {
+        if (height < static_cast<uint32_t>(Params().GetConsensus().GreatWorldHeight) && hasAdditionalOpcodes & HasForks::FortCanning) {
+            return CustomTxType::Reject;
+        } else if (height >= static_cast<uint32_t>(Params().GetConsensus().GreatWorldHeight) && hasAdditionalOpcodes & HasForks::GreatWorld) {
+            return CustomTxType::Reject;
+        }
     }
 
     auto txType = CustomTxCodeToType(metadata[0]);
